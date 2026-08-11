@@ -113,6 +113,7 @@ export async function analyzeVehicleIntake(input: {
 
   const response = await client.responses.parse({
     model: input.model,
+    store: false,
     instructions: [
       "You assist a professional automotive repair estimator during photo-first intake.",
       "Use supplied photos and user-entered hints only. Do not use outside knowledge to invent identifiers or claim facts that are not supported.",
