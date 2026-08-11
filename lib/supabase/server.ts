@@ -1,27 +1,47 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+function getServerSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY ??
+    process.env.SUPABASE_ANON_KEY;
+
+  if (!url) {
+    throw new Error(
+      "Supabase URL is missing. Set NEXT_PUBLIC_SUPABASE_URL (preferred) or SUPABASE_URL in Vercel.",
+    );
+  }
+
+  if (!key) {
+    throw new Error(
+      "Supabase public key is missing. Set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (preferred) or a compatible anon/publishable key variable in Vercel.",
+    );
+  }
+
+  return { url, key };
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
+  const { url, key } = getServerSupabaseConfig();
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {
-            // Server Components cannot always write cookies. proxy.ts refreshes sessions.
-          }
-        },
+  return createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {
+          // Server Components cannot always write cookies. proxy.ts refreshes sessions.
+        }
       },
     },
-  );
+  });
 }
