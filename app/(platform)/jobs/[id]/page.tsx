@@ -33,12 +33,16 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
 
   if (!job) notFound();
 
-  const [{ data: vehicle }, { data: customer }, { data: claim }, { data: statusHistory = [] }] = await Promise.all([
+  const [vehicleResult, customerResult, claimResult, statusHistoryResult] = await Promise.all([
     job.vehicle_id ? supabase.from("vehicles").select("registration, vin, make, model, variant, model_year, colour, paint_code, odometer_km, body_type, fuel_type, is_ev, is_hybrid, adas_present").eq("id", job.vehicle_id).maybeSingle() : Promise.resolve({ data: null }),
     job.customer_id ? supabase.from("customers").select("first_name, last_name, business_name, email, phone").eq("id", job.customer_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("claims").select("insurer_id, claim_number, policy_number, assessor_name, assessor_email, assessor_phone, excess_amount, accident_date, accident_location, accident_description, authority_reference").eq("job_id", job.id).maybeSingle(),
     supabase.from("job_status_history").select("id, from_status, to_status, created_at").eq("job_id", job.id).order("created_at", { ascending: false }).limit(8),
   ]);
+  const vehicle = vehicleResult.data;
+  const customer = customerResult.data;
+  const claim = claimResult.data;
+  const statusHistory = statusHistoryResult.data ?? [];
 
   const { data: insurer } = claim?.insurer_id
     ? await supabase.from("insurers").select("name").eq("id", claim.insurer_id).maybeSingle()
