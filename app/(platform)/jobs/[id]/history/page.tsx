@@ -31,25 +31,36 @@ type VersionItem = {
   line_total_ex_tax: number | string;
 };
 
+type ItemDifference =
+  | { kind: "added"; previous: null; current: VersionItem; delta: number }
+  | { kind: "removed"; previous: VersionItem; current: null; delta: number }
+  | { kind: "changed"; previous: VersionItem; current: VersionItem; delta: number };
+
 function itemKey(item: VersionItem) {
   return item.original_item_id || [item.category_code, item.component, item.side, item.operation_code, item.description].join("|");
 }
 
-function compareItems(before: VersionItem[], after: VersionItem[]) {
+function compareItems(before: VersionItem[], after: VersionItem[]): ItemDifference[] {
   const beforeMap = new Map(before.map((item) => [itemKey(item), item]));
   const afterMap = new Map(after.map((item) => [itemKey(item), item]));
   const keys = new Set([...beforeMap.keys(), ...afterMap.keys()]);
+  const differences: ItemDifference[] = [];
 
-  return [...keys].flatMap((key) => {
+  for (const key of keys) {
     const previous = beforeMap.get(key);
     const current = afterMap.get(key);
+
     if (!previous && current) {
-      return [{ kind: "added" as const, previous: null, current, delta: Number(current.line_total_ex_tax) }];
+      differences.push({ kind: "added", previous: null, current, delta: Number(current.line_total_ex_tax) });
+      continue;
     }
+
     if (previous && !current) {
-      return [{ kind: "removed" as const, previous, current: null, delta: -Number(previous.line_total_ex_tax) }];
+      differences.push({ kind: "removed", previous, current: null, delta: -Number(previous.line_total_ex_tax) });
+      continue;
     }
-    if (!previous || !current) return [];
+
+    if (!previous || !current) continue;
 
     const delta = Number(current.line_total_ex_tax) - Number(previous.line_total_ex_tax);
     const changed =
@@ -61,8 +72,10 @@ function compareItems(before: VersionItem[], after: VersionItem[]) {
       previous.description !== current.description ||
       previous.operation_code !== current.operation_code;
 
-    return changed ? [{ kind: "changed" as const, previous, current, delta }] : [];
-  });
+    if (changed) differences.push({ kind: "changed", previous, current, delta });
+  }
+
+  return differences;
 }
 
 export default async function HistoryPage({
@@ -154,7 +167,7 @@ export default async function HistoryPage({
 
               {selectedA?.id === selectedB?.id ? <p className="text-sm text-[var(--muted)]">Choose two different versions.</p> : <div>
                 <div className="mb-4 flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[#091322] p-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs text-[var(--muted)]">Total change</p><p className={`mt-1 text-2xl font-semibold tabular-nums ${totalDelta > 0 ? "text-[var(--brand)]" : totalDelta < 0 ? "text-amber-200" : ""}`}>{totalDelta > 0 ? "+" : ""}{money(totalDelta, selectedB?.currency ?? "NZD")}</p></div><p className="text-xs text-[var(--muted)]">Version {selectedA?.version_number} → Version {selectedB?.version_number}</p></div>
-                {differences.length === 0 ? <p className="text-sm text-[var(--muted)]">No line-level differences found between these snapshots.</p> : <div className="space-y-2">{differences.map((difference, index) => { const item = difference.current ?? difference.previous!; return <div key={`${itemKey(item)}-${index}`} className="grid gap-2 rounded-xl border border-[var(--border)] px-4 py-3 sm:grid-cols-[110px_1fr_auto]"><span className={`text-xs font-semibold uppercase tracking-wide ${difference.kind === "added" ? "text-[var(--brand)]" : difference.kind === "removed" ? "text-amber-200" : "text-sky-200"}`}>{difference.kind}</span><div><p className="text-sm font-medium">{item.description}</p><p className="mt-1 text-xs text-[var(--muted)]">{[item.category_name, item.side, item.component, item.operation_code].filter(Boolean).join(" · ")}</p>{difference.kind === "changed" && difference.previous && difference.current ? <p className="mt-1 text-[11px] text-[var(--muted)]">Hours {Number(difference.previous.labour_hours).toFixed(2)} → {Number(difference.current.labour_hours).toFixed(2)} · Rate {money(Number(difference.previous.labour_rate))} → {money(Number(difference.current.labour_rate))}</p> : null}</div><strong className="text-sm tabular-nums">{difference.delta > 0 ? "+" : ""}{money(difference.delta, selectedB?.currency ?? "NZD")}</strong></div>; })}</div>}
+                {differences.length === 0 ? <p className="text-sm text-[var(--muted)]">No line-level differences found between these snapshots.</p> : <div className="space-y-2">{differences.map((difference, index) => { const item = difference.current ?? difference.previous; return <div key={`${itemKey(item)}-${index}`} className="grid gap-2 rounded-xl border border-[var(--border)] px-4 py-3 sm:grid-cols-[110px_1fr_auto]"><span className={`text-xs font-semibold uppercase tracking-wide ${difference.kind === "added" ? "text-[var(--brand)]" : difference.kind === "removed" ? "text-amber-200" : "text-sky-200"}`}>{difference.kind}</span><div><p className="text-sm font-medium">{item.description}</p><p className="mt-1 text-xs text-[var(--muted)]">{[item.category_name, item.side, item.component, item.operation_code].filter(Boolean).join(" · ")}</p>{difference.kind === "changed" ? <p className="mt-1 text-[11px] text-[var(--muted)]">Hours {Number(difference.previous.labour_hours).toFixed(2)} → {Number(difference.current.labour_hours).toFixed(2)} · Rate {money(Number(difference.previous.labour_rate))} → {money(Number(difference.current.labour_rate))}</p> : null}</div><strong className="text-sm tabular-nums">{difference.delta > 0 ? "+" : ""}{money(difference.delta, selectedB?.currency ?? "NZD")}</strong></div>; })}</div>}
               </div>}
             </>}
           </section>
