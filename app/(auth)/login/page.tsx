@@ -1,12 +1,13 @@
+import Link from "next/link";
 import { CarFront, ShieldCheck, Sparkles } from "lucide-react";
 import { signIn } from "@/lib/auth/actions";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; message?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, message } = await searchParams;
 
   return (
     <main className="grid min-h-screen place-items-center px-5 py-10">
@@ -31,6 +32,7 @@ export default async function LoginPage({
           <p className="mt-2 text-sm text-[var(--muted)]">Use your workshop account to continue.</p>
 
           {error ? <div className="mt-6 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+          {message ? <div className="mt-6 rounded-xl border border-[var(--brand)]/30 bg-[rgba(88,211,178,0.08)] px-4 py-3 text-sm text-[var(--brand)]">{message}</div> : null}
 
           <form action={signIn} className="mt-8 space-y-5">
             <label className="grid gap-2 text-sm"><span className="text-xs font-medium text-[var(--muted)]">Email address</span><input name="email" type="email" autoComplete="email" required className="rounded-xl border border-[var(--border)] bg-[#091322] px-3.5 py-3 outline-none transition focus:border-[var(--brand)]" placeholder="you@workshop.co.nz" /></label>
@@ -38,7 +40,7 @@ export default async function LoginPage({
             <button type="submit" className="w-full rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)]">Sign in</button>
           </form>
 
-          <p className="mt-6 text-xs leading-5 text-[var(--muted)]">Accounts are created by your workshop administrator during the pilot and onboarding stages.</p>
+          <p className="mt-6 text-center text-xs text-[var(--muted)]">Setting up a new workshop? <Link href="/signup" className="font-semibold text-[var(--brand)]">Create an owner account</Link></p>
         </section>
       </div>
     </main>
