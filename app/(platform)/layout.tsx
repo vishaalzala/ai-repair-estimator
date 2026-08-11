@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getClaims();
-  const userId = authData.claims?.sub;
+  const userId = authData?.claims?.sub;
 
   if (!userId) redirect("/login");
 
