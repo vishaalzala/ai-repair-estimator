@@ -30,15 +30,19 @@ export default async function EstimatePage({
 
   if (!job) notFound();
 
-  const [{ data: vehicle }, { data: categories = [] }, { data: estimate }] = await Promise.all([
+  const [vehicleResult, categoryResult, estimateResult] = await Promise.all([
     job.vehicle_id ? supabase.from("vehicles").select("registration, make, model, model_year").eq("id", job.vehicle_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("estimate_categories").select("id, code, name, pricing_basis, sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
     supabase.from("estimates").select("id, rate_card_id, status, currency, tax_rate").eq("organization_id", organizationId).eq("job_id", job.id).eq("estimate_type", "primary").maybeSingle(),
   ]);
+  const vehicle = vehicleResult.data;
+  const categories = categoryResult.data ?? [];
+  const estimate = estimateResult.data;
 
-  const { data: items = [] } = estimate
+  const itemResult = estimate
     ? await supabase.from("estimate_items").select("id, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, source_type, human_verified, created_at").eq("estimate_id", estimate.id).order("sort_order").order("created_at")
     : { data: [] };
+  const items = itemResult.data ?? [];
 
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const totals = calculateEstimateTotals(
