@@ -25,7 +25,7 @@ export async function createWorkshop(formData: FormData) {
 
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getClaims();
-  const userId = authData.claims?.sub;
+  const userId = authData?.claims?.sub;
 
   if (!userId) {
     redirect("/login");
