@@ -13,6 +13,25 @@ alter table public.ai_analysis_runs
     )
   );
 
+-- A customer can legitimately be unknown during photo-first intake. If only an
+-- email or phone is known, preserve it without inventing a placeholder name.
+alter table public.customers
+  drop constraint if exists customers_check;
+
+alter table public.customers
+  add constraint customers_check check (
+    (customer_type = 'business' and nullif(trim(coalesce(business_name, '')), '') is not null)
+    or (
+      customer_type = 'individual'
+      and (
+        nullif(trim(coalesce(first_name, '')), '') is not null
+        or nullif(trim(coalesce(last_name, '')), '') is not null
+        or nullif(trim(coalesce(email, '')), '') is not null
+        or nullif(trim(coalesce(phone, '')), '') is not null
+      )
+    )
+  );
+
 create or replace function public.create_job_intake(
   p_organization_id uuid,
   p_payload jsonb
@@ -62,7 +81,7 @@ begin
     ) values (
       p_organization_id,
       'individual',
-      coalesce(v_first_name, case when v_last_name is null then 'Customer pending' else null end),
+      v_first_name,
       v_last_name,
       v_customer_email,
       v_customer_phone,
