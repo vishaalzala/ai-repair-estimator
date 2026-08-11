@@ -1,0 +1,15 @@
+alter table public.workshop_settings
+  add column if not exists trading_name text,
+  add column if not exists legal_name text,
+  add column if not exists gst_number text,
+  add column if not exists email text,
+  add column if not exists phone text,
+  add column if not exists address_line_1 text,
+  add column if not exists address_line_2 text,
+  add column if not exists suburb text,
+  add column if not exists city text,
+  add column if not exists postcode text,
+  add column if not exists country_code char(2) not null default 'NZ',
+  add column if not exists estimate_valid_days integer not null default 30 check (estimate_valid_days > 0 and estimate_valid_days <= 365),
+  add column if not exists estimate_terms text,
+  add column if not exists logo_path text;

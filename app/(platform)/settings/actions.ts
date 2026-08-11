@@ -1,0 +1,91 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireOrganizationContext } from "@/lib/auth/context";
+
+function text(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+export async function updateWorkshopProfile(formData: FormData) {
+  const { supabase, organizationId, role } = await requireOrganizationContext();
+  if (!["owner", "admin", "manager"].includes(role)) {
+    redirect("/settings?error=Only%20workshop%20management%20can%20change%20business%20settings");
+  }
+
+  const gstRate = Number(formData.get("gst_rate") ?? 15);
+  const validDays = Number(formData.get("estimate_valid_days") ?? 30);
+  if (!Number.isFinite(gstRate) || gstRate < 0 || gstRate > 100 || !Number.isInteger(validDays) || validDays < 1 || validDays > 365) {
+    redirect("/settings?error=Please%20check%20the%20GST%20rate%20and%20estimate%20validity");
+  }
+
+  const { error } = await supabase
+    .from("workshop_settings")
+    .update({
+      trading_name: text(formData, "trading_name") || null,
+      legal_name: text(formData, "legal_name") || null,
+      gst_number: text(formData, "gst_number") || null,
+      email: text(formData, "email") || null,
+      phone: text(formData, "phone") || null,
+      address_line_1: text(formData, "address_line_1") || null,
+      address_line_2: text(formData, "address_line_2") || null,
+      suburb: text(formData, "suburb") || null,
+      city: text(formData, "city") || null,
+      postcode: text(formData, "postcode") || null,
+      country_code: text(formData, "country_code").toUpperCase().slice(0, 2) || "NZ",
+      default_currency: text(formData, "default_currency").toUpperCase().slice(0, 3) || "NZD",
+      gst_rate: gstRate,
+      estimate_valid_days: validDays,
+      estimate_terms: text(formData, "estimate_terms") || null,
+    })
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    console.error("Workshop settings update failed", error.code);
+    redirect("/settings?error=Unable%20to%20save%20workshop%20settings");
+  }
+
+  revalidatePath("/settings");
+  redirect("/settings?message=Workshop%20settings%20saved");
+}
+
+export async function updateRateCardRate(formData: FormData) {
+  const { supabase, organizationId, role } = await requireOrganizationContext();
+  if (!["owner", "admin", "manager"].includes(role)) {
+    redirect("/settings?error=Only%20workshop%20management%20can%20change%20rates");
+  }
+
+  const rateCardId = text(formData, "rate_card_id");
+  const categoryId = text(formData, "category_id");
+  const hourlyRaw = text(formData, "hourly_rate");
+  const fixedRaw = text(formData, "fixed_rate");
+  const hourlyRate = hourlyRaw === "" ? null : Number(hourlyRaw);
+  const fixedRate = fixedRaw === "" ? null : Number(fixedRaw);
+
+  if (!rateCardId || !categoryId || (hourlyRate !== null && (!Number.isFinite(hourlyRate) || hourlyRate < 0)) || (fixedRate !== null && (!Number.isFinite(fixedRate) || fixedRate < 0))) {
+    redirect("/settings?error=Enter%20valid%20non-negative%20rates");
+  }
+
+  const [{ data: rateCard }, { data: category }] = await Promise.all([
+    supabase.from("rate_cards").select("id").eq("organization_id", organizationId).eq("id", rateCardId).maybeSingle(),
+    supabase.from("estimate_categories").select("id").eq("organization_id", organizationId).eq("id", categoryId).maybeSingle(),
+  ]);
+  if (!rateCard || !category) redirect("/settings?error=Invalid%20rate%20card%20selection");
+
+  const { error } = await supabase.from("rate_card_rates").upsert({
+    organization_id: organizationId,
+    rate_card_id: rateCard.id,
+    category_id: category.id,
+    hourly_rate: hourlyRate,
+    fixed_rate: fixedRate,
+  }, { onConflict: "rate_card_id,category_id" });
+
+  if (error) {
+    console.error("Rate update failed", error.code);
+    redirect("/settings?error=Unable%20to%20save%20that%20rate");
+  }
+
+  revalidatePath("/settings");
+  redirect("/settings?message=Rate%20updated");
+}
