@@ -27,6 +27,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
     pathname === "/login" ||
+    pathname === "/signup" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/onboarding");
 
@@ -37,7 +38,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (data?.claims && pathname === "/login") {
+  if (data?.claims && (pathname === "/login" || pathname === "/signup")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";
