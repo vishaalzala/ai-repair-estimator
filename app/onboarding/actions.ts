@@ -31,24 +31,47 @@ export async function createWorkshop(formData: FormData) {
     redirect("/login");
   }
 
-  const { data: organization, error } = await supabase
-    .from("organizations")
-    .insert({ name, slug: makeSlug(name), created_by: userId })
-    .select("id")
-    .single();
+  // Generate the tenant ID in the server action and use a minimal INSERT response.
+  // Requesting `.select("id")` here makes PostgREST apply the organizations SELECT
+  // policy before the organization bootstrap trigger has made the creator an owner,
+  // which blocks first-workshop creation under RLS.
+  const organizationId = randomUUID();
+  const { error: organizationError } = await supabase.from("organizations").insert({
+    id: organizationId,
+    name,
+    slug: makeSlug(name),
+    created_by: userId,
+  });
 
-  if (error || !organization) {
+  if (organizationError) {
+    console.error("[onboarding] Unable to create organization", {
+      code: organizationError.code,
+      message: organizationError.message,
+      details: organizationError.details,
+      hint: organizationError.hint,
+    });
     redirect("/onboarding?error=Unable%20to%20create%20the%20workshop%20right%20now");
   }
 
   if (city) {
-    await supabase.from("branches").insert({
-      organization_id: organization.id,
+    const { error: branchError } = await supabase.from("branches").insert({
+      organization_id: organizationId,
       name: "Main Workshop",
       city,
       country_code: "NZ",
       is_primary: true,
     });
+
+    if (branchError) {
+      // The organization and owner membership are already valid. Keep onboarding
+      // successful and let the owner complete branch details later in Settings.
+      console.error("[onboarding] Unable to create primary branch", {
+        code: branchError.code,
+        message: branchError.message,
+        details: branchError.details,
+        hint: branchError.hint,
+      });
+    }
   }
 
   redirect("/dashboard");
