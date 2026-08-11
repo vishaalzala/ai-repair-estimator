@@ -156,3 +156,31 @@ export async function deleteEstimateItem(jobId: string, formData: FormData) {
   await supabase.from("estimate_items").delete().eq("id", itemId).eq("organization_id", organizationId);
   revalidatePath(`/jobs/${jobId}/estimate`);
 }
+
+export async function saveEstimateVersion(jobId: string) {
+  const { supabase, organizationId } = await requireOrganizationContext();
+  const { data: estimate } = await supabase
+    .from("estimates")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("job_id", jobId)
+    .eq("estimate_type", "primary")
+    .maybeSingle();
+
+  if (!estimate) {
+    redirect(`/jobs/${jobId}/estimate?error=Add%20at%20least%20one%20estimate%20item%20before%20creating%20a%20version`);
+  }
+
+  const { error } = await supabase.rpc("snapshot_estimate", {
+    p_estimate_id: estimate.id,
+    p_reason: "manual_snapshot",
+  });
+
+  if (error) {
+    console.error("snapshot_estimate failed", error.code);
+    redirect(`/jobs/${jobId}/estimate?error=Unable%20to%20create%20the%20estimate%20version`);
+  }
+
+  revalidatePath(`/jobs/${jobId}/history`);
+  redirect(`/jobs/${jobId}/history?message=Estimate%20version%20saved`);
+}
