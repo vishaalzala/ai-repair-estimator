@@ -12,6 +12,14 @@ function getProxySupabaseConfig() {
   return url && key ? { url, key } : null;
 }
 
+function redirectToLogin(request: NextRequest, reason?: string) {
+  const url = request.nextUrl.clone();
+  url.pathname = "/login";
+  if (reason) url.searchParams.set("setup", reason);
+  else url.searchParams.set("next", request.nextUrl.pathname);
+  return NextResponse.redirect(url);
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
@@ -26,47 +34,49 @@ export async function updateSession(request: NextRequest) {
 
   if (!config) {
     console.error("[supabase] Missing public Supabase URL/key in deployment environment.");
+    return isPublicRoute ? response : redirectToLogin(request, "supabase");
+  }
 
-    if (!isPublicRoute) {
+  try {
+    const supabase = createServerClient(config.url, config.key, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    const { data, error } = await supabase.auth.getClaims();
+
+    if (error) {
+      console.warn("[supabase] Session refresh failed:", error.message);
+    }
+
+    if (!data?.claims && !isPublicRoute) {
+      return redirectToLogin(request);
+    }
+
+    if (data?.claims && (pathname === "/login" || pathname === "/signup")) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      url.searchParams.set("setup", "supabase");
+      url.pathname = "/dashboard";
+      url.search = "";
       return NextResponse.redirect(url);
     }
 
     return response;
+  } catch (error) {
+    console.error(
+      "[supabase] Failed to initialize session middleware:",
+      error instanceof Error ? error.message : "unknown error",
+    );
+
+    return isPublicRoute ? response : redirectToLogin(request, "supabase-runtime");
   }
-
-  const supabase = createServerClient(config.url, config.key, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-
-  const { data } = await supabase.auth.getClaims();
-
-  if (!data?.claims && !isPublicRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-
-  if (data?.claims && (pathname === "/login" || pathname === "/signup")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
-  return response;
 }
