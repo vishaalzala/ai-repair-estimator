@@ -11,7 +11,7 @@ export default async function OnboardingPage({
   const { error } = await searchParams;
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getClaims();
-  const userId = authData.claims?.sub;
+  const userId = authData?.claims?.sub;
 
   if (!userId) redirect("/login");
 
