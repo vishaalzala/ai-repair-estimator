@@ -17,18 +17,19 @@ export default async function JobsPage({
   const { q = "" } = await searchParams;
   const { supabase, organizationId } = await requireOrganizationContext();
 
-  const { data: jobs = [], error } = await supabase
+  const { data: jobsData, error } = await supabase
     .from("jobs")
     .select("id, job_number, status, customer_id, vehicle_id, job_reference, updated_at")
     .eq("organization_id", organizationId)
     .order("updated_at", { ascending: false })
     .limit(100);
+  const jobs = jobsData ?? [];
 
   const vehicleIds = jobs.map((job) => job.vehicle_id).filter((id): id is string => Boolean(id));
   const customerIds = jobs.map((job) => job.customer_id).filter((id): id is string => Boolean(id));
   const jobIds = jobs.map((job) => job.id);
 
-  const [{ data: vehicles = [] }, { data: customers = [] }, { data: claims = [] }] = await Promise.all([
+  const [vehicleResult, customerResult, claimResult] = await Promise.all([
     vehicleIds.length
       ? supabase.from("vehicles").select("id, registration, vin, make, model, model_year").in("id", vehicleIds)
       : Promise.resolve({ data: [] }),
@@ -39,6 +40,9 @@ export default async function JobsPage({
       ? supabase.from("claims").select("job_id, claim_number").in("job_id", jobIds)
       : Promise.resolve({ data: [] }),
   ]);
+  const vehicles = vehicleResult.data ?? [];
+  const customers = customerResult.data ?? [];
+  const claims = claimResult.data ?? [];
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
