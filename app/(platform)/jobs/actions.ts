@@ -7,6 +7,66 @@ function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+export type QuickJobInput = {
+  registration?: string;
+  vin?: string;
+  make?: string;
+  model?: string;
+  modelYear?: string;
+  accidentDescription?: string;
+};
+
+export async function createQuickJob(input: QuickJobInput) {
+  const { supabase, organizationId } = await requireOrganizationContext();
+  const payload = {
+    customer_first_name: "",
+    customer_last_name: "",
+    customer_email: "",
+    customer_phone: "",
+    registration: input.registration?.trim() ?? "",
+    vin: input.vin?.trim() ?? "",
+    make: input.make?.trim() ?? "",
+    model: input.model?.trim() ?? "",
+    variant: "",
+    model_year: input.modelYear?.trim() ?? "",
+    colour: "",
+    paint_code: "",
+    odometer_km: "",
+    body_type: "",
+    fuel_type: "",
+    is_ev: false,
+    is_hybrid: false,
+    adas_present: "",
+    repair_type: "collision",
+    repair_size: "",
+    work_source: "",
+    job_reference: "",
+    insurer_name: "",
+    claim_number: "",
+    policy_number: "",
+    assessor_name: "",
+    assessor_email: "",
+    assessor_phone: "",
+    excess_amount: "",
+    accident_date: "",
+    accident_location: "",
+    accident_description: input.accidentDescription?.trim() ?? "",
+    authority_reference: "",
+  };
+
+  const { data: jobId, error } = await supabase.rpc("create_job_intake", {
+    p_organization_id: organizationId,
+    p_payload: payload,
+  });
+
+  if (error || !jobId) {
+    console.error("create_job_intake quick intake failed", error?.code);
+    throw new Error("Unable to start the assessment right now.");
+  }
+
+  return { jobId: String(jobId) };
+}
+
 export async function createJob(formData: FormData) {
   const { supabase, organizationId } = await requireOrganizationContext();
 
@@ -14,15 +74,6 @@ export async function createJob(formData: FormData) {
   const lastName = value(formData, "customer_last_name");
   const make = value(formData, "make");
   const model = value(formData, "model");
-
-  if (!firstName && !lastName) {
-    redirect("/jobs/new?error=Customer%20name%20is%20required");
-  }
-
-  if (!make || !model) {
-    redirect("/jobs/new?error=Vehicle%20make%20and%20model%20are%20required");
-  }
-
   const adasValue = value(formData, "adas_present");
   const payload = {
     customer_first_name: firstName,
