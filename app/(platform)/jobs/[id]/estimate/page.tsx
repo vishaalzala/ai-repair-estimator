@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Calculator, Plus, ReceiptText, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Calculator, History, Plus, ReceiptText, Sparkles, Trash2 } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { calculateEstimateTotals } from "@/lib/estimating/pricing-engine";
-import { addEstimateItem, deleteEstimateItem } from "./actions";
+import { addEstimateItem, deleteEstimateItem, saveEstimateVersion } from "./actions";
 
 const inputClass = "rounded-xl border border-[var(--border)] bg-[#091322] px-3 py-2.5 text-sm outline-none transition focus:border-[var(--brand)]";
 
@@ -55,12 +55,13 @@ export default async function EstimatePage({
   const currency = estimate?.currency ?? "NZD";
   const addAction = addEstimateItem.bind(null, job.id);
   const deleteAction = deleteEstimateItem.bind(null, job.id);
+  const saveVersionAction = saveEstimateVersion.bind(null, job.id);
   const vehicleTitle = [vehicle?.model_year, vehicle?.make, vehicle?.model].filter(Boolean).join(" ") || "Vehicle";
 
   return (
     <div className="mx-auto max-w-[1600px] px-5 py-6 sm:px-7 lg:px-9 lg:py-8">
       <Link href={`/jobs/${job.id}`} className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-white"><ArrowLeft className="size-4" /> Back to {job.job_number}</Link>
-      <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-[var(--brand)]"><Calculator className="size-4" /> Deterministic pricing</div><h1 className="text-3xl font-semibold tracking-tight">Estimate builder</h1><p className="mt-2 text-sm text-[var(--muted)]">{vehicleTitle} · {vehicle?.registration || "Registration pending"}</p></div><div className="text-xs text-[var(--muted)]">{estimate ? `Estimate status: ${estimate.status.replaceAll("_", " ")}` : "A draft estimate will be created when the first line is added."}</div></header>
+      <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-[var(--brand)]"><Calculator className="size-4" /> Deterministic pricing</div><h1 className="text-3xl font-semibold tracking-tight">Estimate builder</h1><p className="mt-2 text-sm text-[var(--muted)]">{vehicleTitle} · {vehicle?.registration || "Registration pending"}</p></div><div className="flex flex-wrap items-center gap-2"><Link href={`/jobs/${job.id}/history`} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3.5 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-white"><History className="size-4" /> History</Link>{estimate && items.length ? <form action={saveVersionAction}><button type="submit" className="rounded-xl bg-[var(--surface-3)] px-4 py-2.5 text-sm font-semibold transition hover:bg-[var(--brand)] hover:text-[#06110e]">Save Version</button></form> : null}<span className="text-xs text-[var(--muted)]">{estimate ? `Status: ${estimate.status.replaceAll("_", " ")}` : "Draft starts with first line"}</span></div></header>
 
       {error ? <div className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
@@ -119,6 +120,7 @@ export default async function EstimatePage({
               })}
             </div>
             <div className="mt-5 space-y-2 border-t border-[var(--border)] pt-4 text-sm"><div className="flex justify-between text-[var(--muted)]"><span>Subtotal</span><span className="tabular-nums">{money(totals.subtotal, currency)}</span></div><div className="flex justify-between text-[var(--muted)]"><span>GST {Number(estimate?.tax_rate ?? 15).toFixed(0)}%</span><span className="tabular-nums">{money(totals.tax, currency)}</span></div><div className="flex items-end justify-between border-t border-[var(--border)] pt-3"><span className="font-semibold">Total</span><span className="text-2xl font-semibold tabular-nums">{money(totals.total, currency)}</span></div></div>
+            {estimate && items.length ? <p className="mt-4 border-t border-[var(--border)] pt-3 text-[11px] leading-5 text-[var(--muted)]">Save Version creates an immutable rate, line-item and financial snapshot for later comparison. Normal editing remains the live draft.</p> : null}
           </section>
 
           <section className="rounded-2xl border border-[var(--brand)]/25 bg-[rgba(88,211,178,0.06)] p-5">
