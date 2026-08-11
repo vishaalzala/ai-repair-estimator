@@ -31,10 +31,12 @@ export default async function JobPhotosPage({ params }: { params: Promise<{ id: 
 
   if (!job) notFound();
 
-  const [{ data: vehicle }, { data: photos = [] }] = await Promise.all([
+  const [vehicleResult, photoResult] = await Promise.all([
     job.vehicle_id ? supabase.from("vehicles").select("registration, make, model, model_year").eq("id", job.vehicle_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("photos").select("id, category, file_name, mime_type, file_size_bytes, storage_path_original, caption, created_at").eq("job_id", job.id).order("category").order("created_at", { ascending: true }),
   ]);
+  const vehicle = vehicleResult.data;
+  const photos = photoResult.data ?? [];
 
   const signed = await Promise.all(
     photos.map(async (photo) => {
