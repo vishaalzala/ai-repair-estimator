@@ -1,5 +1,6 @@
 -- Daily Jobs command centre
--- Keeps native workflow state in existing module tables and only stores planning/task metadata here.
+-- Native workflow state remains in existing module tables.
+-- These tables only store planning metadata and standalone workshop tasks.
 
 create table if not exists public.job_schedules (
   id uuid primary key default gen_random_uuid(),
@@ -42,7 +43,7 @@ create table if not exists public.daily_tasks (
   constraint daily_tasks_job_same_org_fk foreign key (organization_id, job_id)
     references public.jobs(organization_id, id) on delete cascade,
   constraint daily_tasks_assigned_member_fk foreign key (organization_id, assigned_to)
-    references public.organization_members(organization_id, user_id) on delete set null
+    references public.organization_members(organization_id, user_id)
 );
 
 create index if not exists daily_tasks_org_due_idx on public.daily_tasks(organization_id, due_at);
@@ -53,32 +54,35 @@ create index if not exists daily_tasks_assigned_idx on public.daily_tasks(organi
 alter table public.job_schedules enable row level security;
 alter table public.daily_tasks enable row level security;
 
-drop policy if exists job_schedules_select on public.job_schedules;
-create policy job_schedules_select on public.job_schedules for select to authenticated
-using (public.is_org_member(organization_id));
+drop policy if exists job_schedules_select_org on public.job_schedules;
+create policy job_schedules_select_org on public.job_schedules for select to authenticated
+using (private.has_org_access(organization_id));
 
-drop policy if exists job_schedules_insert on public.job_schedules;
-create policy job_schedules_insert on public.job_schedules for insert to authenticated
-with check (public.is_org_member(organization_id) and created_by = auth.uid());
-
-drop policy if exists job_schedules_update on public.job_schedules;
-create policy job_schedules_update on public.job_schedules for update to authenticated
-using (public.is_org_member(organization_id))
-with check (public.is_org_member(organization_id));
-
-drop policy if exists job_schedules_delete on public.job_schedules;
-create policy job_schedules_delete on public.job_schedules for delete to authenticated
-using (public.has_org_role(organization_id, array['owner','admin','manager']::text[]));
-
-drop policy if exists daily_tasks_select on public.daily_tasks;
-create policy daily_tasks_select on public.daily_tasks for select to authenticated
-using (public.is_org_member(organization_id));
-
-drop policy if exists daily_tasks_insert on public.daily_tasks;
-create policy daily_tasks_insert on public.daily_tasks for insert to authenticated
+drop policy if exists job_schedules_insert_org on public.job_schedules;
+create policy job_schedules_insert_org on public.job_schedules for insert to authenticated
 with check (
-  public.is_org_member(organization_id)
-  and created_by = auth.uid()
+  created_by = (select auth.uid())
+  and private.has_org_role(organization_id, array['owner','admin','manager','estimator','reviewer','parts','technician']::text[])
+);
+
+drop policy if exists job_schedules_update_org on public.job_schedules;
+create policy job_schedules_update_org on public.job_schedules for update to authenticated
+using (private.has_org_role(organization_id, array['owner','admin','manager','estimator','reviewer','parts','technician']::text[]))
+with check (private.has_org_role(organization_id, array['owner','admin','manager','estimator','reviewer','parts','technician']::text[]));
+
+drop policy if exists job_schedules_delete_manager on public.job_schedules;
+create policy job_schedules_delete_manager on public.job_schedules for delete to authenticated
+using (private.has_org_role(organization_id, array['owner','admin','manager']::text[]));
+
+drop policy if exists daily_tasks_select_org on public.daily_tasks;
+create policy daily_tasks_select_org on public.daily_tasks for select to authenticated
+using (private.has_org_access(organization_id));
+
+drop policy if exists daily_tasks_insert_org on public.daily_tasks;
+create policy daily_tasks_insert_org on public.daily_tasks for insert to authenticated
+with check (
+  created_by = (select auth.uid())
+  and private.has_org_role(organization_id, array['owner','admin','manager','estimator','reviewer','parts','technician']::text[])
   and (assigned_to is null or exists (
     select 1 from public.organization_members m
     where m.organization_id = daily_tasks.organization_id
@@ -87,11 +91,11 @@ with check (
   ))
 );
 
-drop policy if exists daily_tasks_update on public.daily_tasks;
-create policy daily_tasks_update on public.daily_tasks for update to authenticated
-using (public.is_org_member(organization_id))
+drop policy if exists daily_tasks_update_org on public.daily_tasks;
+create policy daily_tasks_update_org on public.daily_tasks for update to authenticated
+using (private.has_org_role(organization_id, array['owner','admin','manager','estimator','reviewer','parts','technician']::text[]))
 with check (
-  public.is_org_member(organization_id)
+  private.has_org_role(organization_id, array['owner','admin','manager','estimator','reviewer','parts','technician']::text[])
   and (assigned_to is null or exists (
     select 1 from public.organization_members m
     where m.organization_id = daily_tasks.organization_id
@@ -100,9 +104,9 @@ with check (
   ))
 );
 
-drop policy if exists daily_tasks_delete on public.daily_tasks;
-create policy daily_tasks_delete on public.daily_tasks for delete to authenticated
+drop policy if exists daily_tasks_delete_own_or_manager on public.daily_tasks;
+create policy daily_tasks_delete_own_or_manager on public.daily_tasks for delete to authenticated
 using (
-  created_by = auth.uid()
-  or public.has_org_role(organization_id, array['owner','admin','manager']::text[])
+  created_by = (select auth.uid())
+  or private.has_org_role(organization_id, array['owner','admin','manager']::text[])
 );
