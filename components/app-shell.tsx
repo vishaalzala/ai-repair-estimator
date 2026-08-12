@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { BookOpenText, Boxes, CarFront, CircleGauge, FileText, LogOut, Settings, Sparkles, Users } from "lucide-react";
+import { BookOpenText, Boxes, CalendarDays, CarFront, CircleGauge, FileText, LogOut, Settings, Sparkles, Users } from "lucide-react";
 import { signOut } from "@/lib/auth/actions";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: CircleGauge },
   { href: "/jobs", label: "Jobs", icon: CarFront },
+  { href: "/daily-jobs", label: "Daily Jobs", icon: CalendarDays },
   { href: "/parts", label: "Parts", icon: Boxes },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/knowledge", label: "AI Knowledge", icon: Sparkles },
