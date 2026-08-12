@@ -30,7 +30,7 @@ import {
 } from "./actions";
 
 const inputClass = "min-w-0 rounded-lg border border-[var(--border)] bg-[#091322] px-2.5 py-2 text-xs text-white outline-none transition focus:border-[var(--brand)]";
-const rowInputClass = "min-w-0 rounded-md border border-[#334155] bg-[#f8fafc] px-2 py-1.5 text-xs text-[#0f172a] outline-none transition focus:border-[#0ea5e9]";
+const rowInputClass = "min-w-0 rounded-lg border border-[var(--border)] bg-[#091322] px-2.5 py-2 text-xs text-white outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)]/20";
 
 function money(value: number, currency = "NZD") {
   return new Intl.NumberFormat("en-NZ", { style: "currency", currency }).format(value);
@@ -130,7 +130,7 @@ export default async function EstimatePage({
           <nav className="hidden items-center gap-1 xl:flex">
             <WorkspaceLink href={`/jobs/${job.id}/photos`} icon={Camera} label={`Photos ${photoCount || ""}`} />
             <WorkspaceLink href={`/jobs/${job.id}/damage`} icon={CarFront} label="Damage" />
-            <WorkspaceLink href={`/jobs/${job.id}/parts`} icon={PackageSearch} label={partsRequest ? "Parts" : "Parts"} />
+            <WorkspaceLink href={`/jobs/${job.id}/parts`} icon={PackageSearch} label="Parts" />
             <WorkspaceLink href={`/jobs/${job.id}/ai-review`} icon={Bot} label={unresolvedAi ? `AI Review ${unresolvedAi}` : "AI Review"} />
             <WorkspaceLink href={`/jobs/${job.id}/history`} icon={History} label="History" />
           </nav>
@@ -174,10 +174,10 @@ export default async function EstimatePage({
           </div>
         </aside>
 
-        <main className="min-w-0 bg-[#dfe4e8] xl:min-h-0 xl:overflow-y-auto">
-          <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[#cbd5e1] bg-[#f8fafc]/95 px-4 py-2.5 text-[#0f172a] backdrop-blur">
-            <div><h2 className="text-sm font-semibold">Repair operations</h2><p className="text-[10px] text-[#64748b]">Type directly into each section. Add, edit and save without leaving this page.</p></div>
-            <div className="text-right"><div className="text-[10px] text-[#64748b]">Estimate total</div><div className="font-semibold tabular-nums">{money(totals.total, currency)}</div></div>
+        <main className="min-w-0 bg-[#07101c] xl:min-h-0 xl:overflow-y-auto">
+          <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[#091322]/95 px-4 py-3 backdrop-blur">
+            <div><h2 className="text-sm font-semibold">Repair operations</h2><p className="text-[10px] text-[var(--muted)]">Type directly into each section. Add, edit and save without leaving this page.</p></div>
+            <div className="text-right"><div className="text-[10px] text-[var(--muted)]">Estimate total</div><div className="font-semibold tabular-nums text-[var(--brand)]">{money(totals.total, currency)}</div></div>
           </div>
 
           <div className="space-y-3 p-3 sm:p-4">
@@ -187,77 +187,77 @@ export default async function EstimatePage({
               const isFixed = category.pricing_basis === "fixed";
 
               return (
-                <section id={`category-${category.code}`} key={category.id} className="scroll-mt-14 overflow-hidden rounded-xl border border-[#d6dde3] bg-white text-[#0f172a] shadow-sm">
-                  <div className="flex items-center justify-between gap-4 border-b border-[#e2e8f0] px-3 py-2.5 sm:px-4">
-                    <div className="flex min-w-0 items-center gap-2.5"><span className="grid size-7 shrink-0 place-items-center rounded-md bg-[#e0f2fe] text-[#0284c7]"><ClipboardList className="size-4" /></span><div className="min-w-0"><h3 className="truncate text-base font-semibold text-[#0284c7]">{category.name}</h3><p className="text-[9px] uppercase tracking-[0.13em] text-[#94a3b8]">{category.pricing_basis} pricing · {categoryItems.length} line{categoryItems.length === 1 ? "" : "s"}</p></div></div>
-                    <span className="shrink-0 text-xs font-semibold tabular-nums text-[#334155]">{money(categoryTotal, currency)}</span>
+                <section id={`category-${category.code}`} key={category.id} className="scroll-mt-16 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm shadow-black/10">
+                  <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-3 py-3 sm:px-4">
+                    <div className="flex min-w-0 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--surface-3)] text-[var(--brand)]"><ClipboardList className="size-4" /></span><div className="min-w-0"><h3 className="truncate text-base font-semibold text-white">{category.name}</h3><p className="text-[9px] uppercase tracking-[0.13em] text-[var(--muted)]">{category.pricing_basis} pricing · {categoryItems.length} line{categoryItems.length === 1 ? "" : "s"}</p></div></div>
+                    <span className="shrink-0 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold tabular-nums text-[var(--brand)]">{money(categoryTotal, currency)}</span>
                   </div>
 
-                  <div className="hidden grid-cols-[minmax(260px,1fr)_76px_60px_68px_82px_92px_94px_70px] gap-1 border-b border-[#e2e8f0] bg-[#f8fafc] px-3 py-1.5 text-[9px] font-medium uppercase tracking-wide text-[#94a3b8] lg:grid">
-                    <span>Description / component</span><span>Side</span><span className="text-center">Report</span><span className="text-right">Hours</span><span className="text-right">{isFixed ? "Fixed $" : "Rate $"}</span><span className="text-right">Part $</span><span className="text-right">Total</span><span />
+                  <div className="hidden grid-cols-[minmax(300px,1fr)_78px_64px_72px_92px_100px_72px] gap-2 border-b border-[var(--border)] bg-[#0a1423] px-3 py-2 text-[9px] font-medium uppercase tracking-wide text-[var(--muted)] lg:grid">
+                    <span>Description / component</span><span>Side</span><span className="text-center">Report</span><span className="text-right">Hours</span><span className="text-right">{isFixed ? "Fixed $" : "Rate $"}</span><span className="text-right">Total</span><span />
                   </div>
 
-                  <div className="divide-y divide-[#edf1f5]">
+                  <div className="divide-y divide-[var(--border)]/70">
                     {categoryItems.map((item) => (
-                      <form action={updateAction} key={item.id} className={`${item.source_type === "ai" && !item.human_verified ? "bg-[#fff7ed]" : "bg-white"} px-3 py-2`}>
+                      <form action={updateAction} key={item.id} className={`${item.source_type === "ai" && !item.human_verified ? "bg-amber-300/[0.05]" : "bg-[var(--surface)]"} px-3 py-2.5`}>
                         <input type="hidden" name="item_id" value={item.id} />
                         <input type="hidden" name="category_id" value={category.id} />
                         <input type="hidden" name="quantity" value={Number(item.quantity)} />
                         <input type="hidden" name="operation_code" value={item.operation_code ?? ""} />
+                        <input type="hidden" name="part_cost" value={Number(item.part_cost)} />
                         <input type="hidden" name="markup_percent" value={Number(item.markup_percent)} />
                         <input type="hidden" name="freight_amount" value={Number(item.freight_amount)} />
                         <input type="hidden" name="adjustment_amount" value={Number(item.adjustment_amount)} />
                         <input type="hidden" name="notes" value={item.notes ?? ""} />
                         {isFixed ? <input type="hidden" name="labour_rate" value={Number(item.labour_rate)} /> : <input type="hidden" name="fixed_amount" value={Number(item.fixed_amount)} />}
 
-                        <div className="grid gap-2 lg:grid-cols-[minmax(260px,1fr)_76px_60px_68px_82px_92px_94px_70px] lg:items-center lg:gap-1">
-                          <div className="grid min-w-0 gap-1 sm:grid-cols-[120px_minmax(160px,1fr)] lg:grid-cols-[105px_minmax(150px,1fr)]">
+                        <div className="grid gap-2 lg:grid-cols-[minmax(300px,1fr)_78px_64px_72px_92px_100px_72px] lg:items-center">
+                          <div className="grid min-w-0 gap-2 sm:grid-cols-[125px_minmax(180px,1fr)] lg:grid-cols-[115px_minmax(180px,1fr)]">
                             <input name="component" defaultValue={item.component ?? ""} className={rowInputClass} placeholder="Component" />
                             <input name="description" required defaultValue={item.description} className={rowInputClass} placeholder="Description" />
                           </div>
                           <select name="side" defaultValue={item.side ?? ""} className={rowInputClass}><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
-                          <label className="flex items-center justify-start gap-2 text-[10px] text-[#64748b] lg:justify-center"><input name="human_verified" type="checkbox" defaultChecked={item.human_verified} className="size-3.5 accent-[#0284c7]" /><span className="lg:hidden">Verified</span></label>
+                          <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="human_verified" type="checkbox" defaultChecked={item.human_verified} className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Verified</span></label>
                           <input name="labour_hours" type="number" min="0" step="0.05" defaultValue={Number(item.labour_hours)} className={`${rowInputClass} text-right tabular-nums`} />
                           {isFixed ? <input name="fixed_amount" type="number" step="0.01" defaultValue={Number(item.fixed_amount)} className={`${rowInputClass} text-right tabular-nums`} /> : <input name="labour_rate" type="number" min="0" step="0.01" defaultValue={Number(item.labour_rate)} className={`${rowInputClass} text-right tabular-nums`} />}
-                          <input name="part_cost" type="number" min="0" step="0.01" defaultValue={Number(item.part_cost)} className={`${rowInputClass} text-right tabular-nums`} />
-                          <div className="rounded-md bg-[#f1f5f9] px-2 py-1.5 text-right text-xs font-semibold tabular-nums">{money(Number(item.line_total_ex_tax), currency)}</div>
-                          <div className="flex items-center justify-end gap-1">
-                            <button type="submit" title="Save line" className="grid size-7 place-items-center rounded-md bg-[#e0f2fe] text-[#0284c7] transition hover:bg-[#bae6fd]"><Save className="size-3.5" /></button>
-                            <button type="submit" formAction={deleteAction} title="Delete line" className="grid size-7 place-items-center rounded-md bg-[#fee2e2] text-[#b91c1c] transition hover:bg-[#fecaca]"><Trash2 className="size-3.5" /></button>
+                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-right text-xs font-semibold tabular-nums text-white">{money(Number(item.line_total_ex_tax), currency)}</div>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button type="submit" title="Save line" className="grid size-8 place-items-center rounded-lg border border-[var(--brand)]/25 bg-[rgba(88,211,178,0.08)] text-[var(--brand)] transition hover:bg-[rgba(88,211,178,0.16)]"><Save className="size-3.5" /></button>
+                            <button type="submit" formAction={deleteAction} title="Delete line" className="grid size-8 place-items-center rounded-lg border border-red-400/20 bg-red-400/5 text-red-200 transition hover:bg-red-400/10"><Trash2 className="size-3.5" /></button>
                           </div>
                         </div>
 
-                        {item.source_type !== "manual" ? <div className="mt-1 flex items-center gap-2 text-[9px] text-[#b45309]"><Sparkles className="size-3" /><span>AI suggestion{item.ai_confidence != null ? ` · ${Math.round(Number(item.ai_confidence) * 100)}% confidence` : ""}. Estimator review required.</span></div> : null}
+                        {item.source_type !== "manual" ? <div className="mt-2 flex items-center gap-2 text-[9px] text-amber-200"><Sparkles className="size-3" /><span>AI suggestion{item.ai_confidence != null ? ` · ${Math.round(Number(item.ai_confidence) * 100)}% confidence` : ""}. Estimator review required.</span></div> : null}
                       </form>
                     ))}
                   </div>
 
-                  <form action={addAction} className="border-t border-[#dbe3ea] bg-[#f8fafc] px-3 py-2.5">
+                  <form action={addAction} className="border-t border-[var(--border)] bg-[#0a1423] px-3 py-3">
                     <input type="hidden" name="category_id" value={category.id} />
                     <input type="hidden" name="quantity" value="1" />
                     <input type="hidden" name="operation_code" value="" />
+                    <input type="hidden" name="part_cost" value="0" />
                     <input type="hidden" name="markup_percent" value="0" />
                     <input type="hidden" name="freight_amount" value="0" />
                     <input type="hidden" name="adjustment_amount" value="0" />
                     {isFixed ? <input type="hidden" name="labour_rate" value="" /> : <input type="hidden" name="fixed_amount" value="" />}
-                    <div className="grid gap-2 lg:grid-cols-[minmax(260px,1fr)_76px_60px_68px_82px_92px_94px_70px] lg:items-center lg:gap-1">
-                      <div className="grid min-w-0 gap-1 sm:grid-cols-[120px_minmax(160px,1fr)] lg:grid-cols-[105px_minmax(150px,1fr)]"><input name="component" className={rowInputClass} placeholder="Component" /><input name="description" required className={rowInputClass} placeholder={`Add ${category.name.toLowerCase()} operation…`} /></div>
+                    <div className="grid gap-2 lg:grid-cols-[minmax(300px,1fr)_78px_64px_72px_92px_100px_72px] lg:items-center">
+                      <div className="grid min-w-0 gap-2 sm:grid-cols-[125px_minmax(180px,1fr)] lg:grid-cols-[115px_minmax(180px,1fr)]"><input name="component" className={rowInputClass} placeholder="Component" /><input name="description" required className={rowInputClass} placeholder={`Add ${category.name.toLowerCase()} operation…`} /></div>
                       <select name="side" className={rowInputClass} defaultValue=""><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
-                      <span className="hidden text-center text-[10px] text-[#94a3b8] lg:block">New</span>
+                      <span className="hidden text-center text-[10px] text-[var(--muted)] lg:block">New</span>
                       <input name="labour_hours" type="number" min="0" step="0.05" className={`${rowInputClass} text-right`} placeholder="0" />
                       {isFixed ? <input name="fixed_amount" type="number" step="0.01" className={`${rowInputClass} text-right`} placeholder="0.00" /> : <input name="labour_rate" type="number" min="0" step="0.01" className={`${rowInputClass} text-right`} placeholder="Rate" />}
-                      <input name="part_cost" type="number" min="0" step="0.01" className={`${rowInputClass} text-right`} placeholder="0.00" />
-                      <span className="hidden rounded-md bg-[#eef2f6] px-2 py-1.5 text-right text-xs text-[#94a3b8] lg:block">—</span>
-                      <button type="submit" title={`Add ${category.name} line`} className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-[#0ea5e9] px-2 text-[10px] font-semibold text-white transition hover:bg-[#0284c7]"><Plus className="size-3.5" /><span className="lg:hidden">Add</span></button>
+                      <span className="hidden rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-right text-xs text-[var(--muted)] lg:block">—</span>
+                      <button type="submit" title={`Add ${category.name} line`} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-[var(--brand)] px-2 text-[10px] font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)]"><Plus className="size-3.5" /><span className="lg:hidden">Add</span></button>
                     </div>
                   </form>
 
-                  <div className="flex items-center justify-end gap-2 border-t border-[#e2e8f0] bg-white px-4 py-2 text-xs text-[#475569]"><span>{category.name} Total:</span><strong className="text-sm tabular-nums text-[#0f172a]">{money(categoryTotal, currency)}</strong></div>
+                  <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs text-[var(--muted)]"><span>{category.name} Total:</span><strong className="text-sm tabular-nums text-white">{money(categoryTotal, currency)}</strong></div>
                 </section>
               );
             })}
 
-            {categories.length === 0 ? <div className="rounded-xl border border-[#cbd5e1] bg-white p-8 text-center text-sm text-[#64748b]">No estimate categories are configured for this workshop.</div> : null}
+            {categories.length === 0 ? <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">No estimate categories are configured for this workshop.</div> : null}
           </div>
         </main>
 
