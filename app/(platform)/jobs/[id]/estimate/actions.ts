@@ -5,6 +5,17 @@ import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { calculateLineTotal, parseNumber } from "@/lib/estimating/pricing-engine";
 
+function value(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function nullableNumber(formData: FormData, key: string) {
+  const raw = value(formData, key);
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function ensureEstimate(jobId: string) {
   const context = await requireOrganizationContext();
   const { supabase, organizationId, userId } = context;
@@ -64,15 +75,8 @@ async function ensureEstimate(jobId: string) {
   return { ...context, job, estimate: created };
 }
 
-export async function addEstimateItem(jobId: string, formData: FormData) {
-  const { supabase, organizationId, userId, job, estimate } = await ensureEstimate(jobId);
-  const categoryId = String(formData.get("category_id") ?? "");
-  const description = String(formData.get("description") ?? "").trim();
-
-  if (!categoryId || !description) {
-    redirect(`/jobs/${jobId}/estimate?error=Category%20and%20description%20are%20required`);
-  }
-
+async function getCategoryAndDefaults(organizationId: string, estimate: { rate_card_id: string | null }, categoryId: string) {
+  const { supabase } = await requireOrganizationContext();
   const { data: category } = await supabase
     .from("estimate_categories")
     .select("id, pricing_basis")
@@ -81,58 +85,70 @@ export async function addEstimateItem(jobId: string, formData: FormData) {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!category) redirect(`/jobs/${jobId}/estimate?error=Invalid%20estimate%20category`);
+  if (!category) return { category: null, defaultRate: null };
 
   const { data: defaultRate } = estimate.rate_card_id
     ? await supabase
         .from("rate_card_rates")
         .select("hourly_rate, fixed_rate")
+        .eq("organization_id", organizationId)
         .eq("rate_card_id", estimate.rate_card_id)
         .eq("category_id", category.id)
         .maybeSingle()
     : { data: null };
 
-  const enteredRate = String(formData.get("labour_rate") ?? "").trim();
-  const enteredFixed = String(formData.get("fixed_amount") ?? "").trim();
-  const labourRate = enteredRate ? parseNumber(formData.get("labour_rate")) : Number(defaultRate?.hourly_rate ?? 0);
-  const fixedAmount = enteredFixed ? parseNumber(formData.get("fixed_amount")) : Number(defaultRate?.fixed_rate ?? 0);
+  return { category, defaultRate };
+}
+
+function readLineValues(formData: FormData, defaults?: { hourly_rate?: number | string | null; fixed_rate?: number | string | null }) {
+  const enteredRate = value(formData, "labour_rate");
+  const enteredFixed = value(formData, "fixed_amount");
+  const labourRate = enteredRate ? Math.max(0, parseNumber(formData.get("labour_rate"))) : Number(defaults?.hourly_rate ?? 0);
+  const fixedAmount = enteredFixed ? parseNumber(formData.get("fixed_amount")) : Number(defaults?.fixed_rate ?? 0);
   const quantity = Math.max(0.01, parseNumber(formData.get("quantity")) || 1);
   const labourHours = Math.max(0, parseNumber(formData.get("labour_hours")));
   const partCost = Math.max(0, parseNumber(formData.get("part_cost")));
   const markupPercent = Math.max(0, parseNumber(formData.get("markup_percent")));
   const freightAmount = Math.max(0, parseNumber(formData.get("freight_amount")));
   const adjustmentAmount = parseNumber(formData.get("adjustment_amount"));
+  const calculated = calculateLineTotal({ quantity, labourHours, labourRate, fixedAmount, partCost, markupPercent, freightAmount, adjustmentAmount });
 
-  const calculated = calculateLineTotal({
-    quantity,
-    labourHours,
-    labourRate,
-    fixedAmount,
-    partCost,
-    markupPercent,
-    freightAmount,
-    adjustmentAmount,
-  });
+  return { quantity, labourHours, labourRate, fixedAmount, partCost, markupPercent, freightAmount, adjustmentAmount, total: calculated.total };
+}
 
+export async function addEstimateItem(jobId: string, formData: FormData) {
+  const { supabase, organizationId, userId, job, estimate } = await ensureEstimate(jobId);
+  const categoryId = value(formData, "category_id");
+  const description = value(formData, "description");
+
+  if (!categoryId || !description) {
+    redirect(`/jobs/${jobId}/estimate?error=Category%20and%20description%20are%20required`);
+  }
+
+  const { category, defaultRate } = await getCategoryAndDefaults(organizationId, estimate, categoryId);
+  if (!category) redirect(`/jobs/${jobId}/estimate?error=Invalid%20estimate%20category`);
+
+  const line = readLineValues(formData, defaultRate ?? undefined);
   const { error } = await supabase.from("estimate_items").insert({
     organization_id: organizationId,
     estimate_id: estimate.id,
     category_id: category.id,
-    component: String(formData.get("component") ?? "").trim() || null,
-    side: String(formData.get("side") ?? "").trim() || null,
-    operation_code: String(formData.get("operation_code") ?? "").trim() || null,
+    component: value(formData, "component") || null,
+    side: value(formData, "side") || null,
+    operation_code: value(formData, "operation_code") || null,
     description,
-    quantity,
-    labour_hours: labourHours,
-    labour_rate: labourRate,
-    fixed_amount: fixedAmount,
-    part_cost: partCost,
-    markup_percent: markupPercent,
-    freight_amount: freightAmount,
-    adjustment_amount: adjustmentAmount,
-    line_total_ex_tax: calculated.total,
+    quantity: line.quantity,
+    labour_hours: line.labourHours,
+    labour_rate: line.labourRate,
+    fixed_amount: line.fixedAmount,
+    part_cost: line.partCost,
+    markup_percent: line.markupPercent,
+    freight_amount: line.freightAmount,
+    adjustment_amount: line.adjustmentAmount,
+    line_total_ex_tax: line.total,
     source_type: "manual",
     human_verified: true,
+    notes: value(formData, "notes") || null,
     created_by: userId,
   });
 
@@ -148,13 +164,175 @@ export async function addEstimateItem(jobId: string, formData: FormData) {
   revalidatePath(`/jobs/${jobId}/estimate`);
 }
 
+export async function updateEstimateItem(jobId: string, formData: FormData) {
+  const itemId = value(formData, "item_id");
+  const categoryId = value(formData, "category_id");
+  const description = value(formData, "description");
+  if (!itemId || !categoryId || !description) return;
+
+  const { supabase, organizationId, userId, estimate } = await ensureEstimate(jobId);
+  const { data: existing } = await supabase
+    .from("estimate_items")
+    .select("id, source_type, human_verified, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, notes")
+    .eq("organization_id", organizationId)
+    .eq("estimate_id", estimate.id)
+    .eq("id", itemId)
+    .maybeSingle();
+  if (!existing) return;
+
+  const { category } = await getCategoryAndDefaults(organizationId, estimate, categoryId);
+  if (!category) return;
+
+  const line = readLineValues(formData);
+  const after = {
+    category_id: category.id,
+    component: value(formData, "component") || null,
+    side: value(formData, "side") || null,
+    operation_code: value(formData, "operation_code") || null,
+    description,
+    quantity: line.quantity,
+    labour_hours: line.labourHours,
+    labour_rate: line.labourRate,
+    fixed_amount: line.fixedAmount,
+    part_cost: line.partCost,
+    markup_percent: line.markupPercent,
+    freight_amount: line.freightAmount,
+    adjustment_amount: line.adjustmentAmount,
+    line_total_ex_tax: line.total,
+    notes: value(formData, "notes") || null,
+    human_verified: formData.get("human_verified") === "on",
+  };
+
+  const { error } = await supabase
+    .from("estimate_items")
+    .update(after)
+    .eq("organization_id", organizationId)
+    .eq("estimate_id", estimate.id)
+    .eq("id", itemId);
+
+  if (error) {
+    console.error("Estimate item update failed", error.code);
+    redirect(`/jobs/${jobId}/estimate?error=Unable%20to%20update%20the%20estimate%20item`);
+  }
+
+  if (existing.source_type === "ai") {
+    await supabase.from("learning_events").insert({
+      organization_id: organizationId,
+      user_id: userId,
+      job_id: jobId,
+      event_type: "ai_modified",
+      entity_type: "estimate_item",
+      entity_id: itemId,
+      before_data: existing,
+      after_data: after,
+      context: { source_type: existing.source_type },
+    });
+  }
+
+  revalidatePath(`/jobs/${jobId}/estimate`);
+}
+
 export async function deleteEstimateItem(jobId: string, formData: FormData) {
-  const itemId = String(formData.get("item_id") ?? "");
+  const itemId = value(formData, "item_id");
   if (!itemId) return;
 
   const { supabase, organizationId } = await requireOrganizationContext();
   await supabase.from("estimate_items").delete().eq("id", itemId).eq("organization_id", organizationId);
   revalidatePath(`/jobs/${jobId}/estimate`);
+}
+
+export async function updateEstimateContext(jobId: string, formData: FormData) {
+  const { supabase, organizationId, userId } = await requireOrganizationContext();
+  const { data: job } = await supabase
+    .from("jobs")
+    .select("id, customer_id, vehicle_id")
+    .eq("organization_id", organizationId)
+    .eq("id", jobId)
+    .maybeSingle();
+  if (!job) return;
+
+  await supabase.from("jobs").update({
+    job_reference: value(formData, "job_reference") || null,
+    repair_type: value(formData, "repair_type") || null,
+    repair_size: value(formData, "repair_size") || null,
+    work_source: value(formData, "work_source") || null,
+  }).eq("organization_id", organizationId).eq("id", jobId);
+
+  if (job.vehicle_id) {
+    const adasRaw = value(formData, "adas_present");
+    await supabase.from("vehicles").update({
+      registration: value(formData, "registration").toUpperCase() || null,
+      vin: value(formData, "vin").toUpperCase() || null,
+      make: value(formData, "make") || null,
+      model: value(formData, "model") || null,
+      variant: value(formData, "variant") || null,
+      model_year: nullableNumber(formData, "model_year"),
+      colour: value(formData, "colour") || null,
+      paint_code: value(formData, "paint_code") || null,
+      odometer_km: nullableNumber(formData, "odometer_km"),
+      body_type: value(formData, "body_type") || null,
+      fuel_type: value(formData, "fuel_type") || null,
+      is_ev: formData.get("is_ev") === "on",
+      is_hybrid: formData.get("is_hybrid") === "on",
+      adas_present: adasRaw === "true" ? true : adasRaw === "false" ? false : null,
+    }).eq("organization_id", organizationId).eq("id", job.vehicle_id);
+  }
+
+  const customerFields = {
+    first_name: value(formData, "customer_first_name") || null,
+    last_name: value(formData, "customer_last_name") || null,
+    email: value(formData, "customer_email") || null,
+    phone: value(formData, "customer_phone") || null,
+  };
+  const hasCustomer = Object.values(customerFields).some(Boolean);
+  let customerId = job.customer_id;
+
+  if (customerId) {
+    if (hasCustomer) {
+      await supabase.from("customers").update(customerFields).eq("organization_id", organizationId).eq("id", customerId);
+    }
+  } else if (hasCustomer) {
+    const { data: created } = await supabase.from("customers").insert({
+      organization_id: organizationId,
+      customer_type: "individual",
+      ...customerFields,
+      created_by: userId,
+    }).select("id").maybeSingle();
+    customerId = created?.id ?? null;
+    if (customerId) {
+      await Promise.all([
+        supabase.from("jobs").update({ customer_id: customerId }).eq("organization_id", organizationId).eq("id", jobId),
+        job.vehicle_id ? supabase.from("vehicles").update({ customer_id: customerId }).eq("organization_id", organizationId).eq("id", job.vehicle_id) : Promise.resolve(),
+      ]);
+    }
+  }
+
+  const insurerName = value(formData, "insurer_name");
+  let insurerId: string | null = null;
+  if (insurerName) {
+    const { data: existingInsurer } = await supabase.from("insurers").select("id").eq("organization_id", organizationId).ilike("name", insurerName).limit(1).maybeSingle();
+    insurerId = existingInsurer?.id ?? null;
+    if (!insurerId) {
+      const { data: createdInsurer } = await supabase.from("insurers").insert({ organization_id: organizationId, name: insurerName }).select("id").maybeSingle();
+      insurerId = createdInsurer?.id ?? null;
+    }
+  }
+
+  await supabase.from("claims").update({
+    insurer_id: insurerId,
+    claim_number: value(formData, "claim_number") || null,
+    policy_number: value(formData, "policy_number") || null,
+    assessor_name: value(formData, "assessor_name") || null,
+    assessor_email: value(formData, "assessor_email") || null,
+    assessor_phone: value(formData, "assessor_phone") || null,
+    excess_amount: nullableNumber(formData, "excess_amount"),
+    accident_location: value(formData, "accident_location") || null,
+    accident_description: value(formData, "accident_description") || null,
+    authority_reference: value(formData, "authority_reference") || null,
+  }).eq("organization_id", organizationId).eq("job_id", jobId);
+
+  revalidatePath(`/jobs/${jobId}/estimate`);
+  revalidatePath(`/jobs/${jobId}`);
 }
 
 export async function saveEstimateVersion(jobId: string) {
