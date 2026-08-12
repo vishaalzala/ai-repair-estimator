@@ -78,6 +78,7 @@ export default async function EstimatePage({
   const customer = customerResult.data;
   const claim = claimResult.data;
   const categories = categoryResult.data ?? [];
+  const displayCategories = categories.filter((category) => category.code !== "blend");
   const estimate = estimateResult.data;
   const photoCount = photoResult.data?.length ?? 0;
   const partsRequest = partsRequestResult.data?.[0] ?? null;
@@ -91,7 +92,7 @@ export default async function EstimatePage({
   const itemResult = estimate
     ? await supabase
         .from("estimate_items")
-        .select("id, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, source_type, ai_confidence, human_verified, notes, created_at")
+        .select("id, category_id, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, source_type, ai_confidence, human_verified, report_selected, blend_selected, notes, created_at")
         .eq("organization_id", organizationId)
         .eq("estimate_id", estimate.id)
         .order("sort_order")
@@ -105,7 +106,7 @@ export default async function EstimatePage({
     Number(estimate?.tax_rate ?? 15),
   );
   const currency = estimate?.currency ?? "NZD";
-  const itemCounts = new Map(categories.map((category) => [category.id, items.filter((item) => item.category_id === category.id).length]));
+  const itemCounts = new Map(displayCategories.map((category) => [category.id, items.filter((item) => item.category_id === category.id).length]));
 
   const addAction = addEstimateItem.bind(null, job.id);
   const updateAction = updateEstimateItem.bind(null, job.id);
@@ -130,7 +131,7 @@ export default async function EstimatePage({
           <nav className="hidden items-center gap-1 xl:flex">
             <WorkspaceLink href={`/jobs/${job.id}/photos`} icon={Camera} label={`Photos ${photoCount || ""}`} />
             <WorkspaceLink href={`/jobs/${job.id}/damage`} icon={CarFront} label="Damage" />
-            <WorkspaceLink href={`/jobs/${job.id}/parts`} icon={PackageSearch} label="Parts" />
+            <WorkspaceLink href={`/jobs/${job.id}/parts`} icon={PackageSearch} label={partsRequest ? "Parts" : "Parts"} />
             <WorkspaceLink href={`/jobs/${job.id}/ai-review`} icon={Bot} label={unresolvedAi ? `AI Review ${unresolvedAi}` : "AI Review"} />
             <WorkspaceLink href={`/jobs/${job.id}/history`} icon={History} label="History" />
           </nav>
@@ -142,7 +143,7 @@ export default async function EstimatePage({
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-2.5 py-1.5 text-[var(--muted)]"><UserRound className="size-3.5" /> {customerName}</span>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-2.5 py-1.5 text-[var(--muted)]"><ShieldCheck className="size-3.5" /> {insurer?.name || "Insurer pending"}</span>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-2.5 py-1.5 text-[var(--muted)]"><CircleDollarSign className="size-3.5" /> {rateCard?.name || "Default workshop rates"}</span>
-          <span className="ml-auto hidden shrink-0 text-[11px] text-[var(--muted)] lg:inline">All estimate sections stay visible in the centre for fast editing.</span>
+          <span className="ml-auto hidden shrink-0 text-[11px] text-[var(--muted)] lg:inline">Report can be selected on every operation. Blend is available only in Paint.</span>
         </div>
       </header>
 
@@ -153,7 +154,7 @@ export default async function EstimatePage({
         <aside className="border-b border-[var(--border)] bg-[#091322] p-3 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-r">
           <div className="mb-2 flex items-center justify-between px-2 py-1"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Estimate sections</span><span className="rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-[10px]">{items.length}</span></div>
           <div className="flex gap-2 overflow-x-auto xl:block xl:space-y-1 xl:overflow-visible">
-            {categories.map((category) => (
+            {displayCategories.map((category) => (
               <CategoryJump
                 key={category.id}
                 href={`#category-${category.code}`}
@@ -176,15 +177,19 @@ export default async function EstimatePage({
 
         <main className="min-w-0 bg-[#07101c] xl:min-h-0 xl:overflow-y-auto">
           <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[#091322]/95 px-4 py-3 backdrop-blur">
-            <div><h2 className="text-sm font-semibold">Repair operations</h2><p className="text-[10px] text-[var(--muted)]">Type directly into each section. Add, edit and save without leaving this page.</p></div>
+            <div><h2 className="text-sm font-semibold">Repair operations</h2><p className="text-[10px] text-[var(--muted)]">Type directly into each section. Report stays selectable; Paint also includes Blend.</p></div>
             <div className="text-right"><div className="text-[10px] text-[var(--muted)]">Estimate total</div><div className="font-semibold tabular-nums text-[var(--brand)]">{money(totals.total, currency)}</div></div>
           </div>
 
           <div className="space-y-3 p-3 sm:p-4">
-            {categories.map((category) => {
+            {displayCategories.map((category) => {
               const categoryItems = items.filter((item) => item.category_id === category.id);
               const categoryTotal = totals.categoryTotals[category.code] ?? 0;
               const isFixed = category.pricing_basis === "fixed";
+              const isPaint = category.code === "paint";
+              const rowGridClass = isPaint
+                ? "lg:grid-cols-[minmax(360px,1fr)_78px_64px_64px_72px_92px_100px_72px]"
+                : "lg:grid-cols-[minmax(420px,1fr)_78px_64px_72px_92px_100px_72px]";
 
               return (
                 <section id={`category-${category.code}`} key={category.id} className="scroll-mt-16 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm shadow-black/10">
@@ -193,8 +198,8 @@ export default async function EstimatePage({
                     <span className="shrink-0 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold tabular-nums text-[var(--brand)]">{money(categoryTotal, currency)}</span>
                   </div>
 
-                  <div className="hidden grid-cols-[minmax(300px,1fr)_78px_64px_72px_92px_100px_72px] gap-2 border-b border-[var(--border)] bg-[#0a1423] px-3 py-2 text-[9px] font-medium uppercase tracking-wide text-[var(--muted)] lg:grid">
-                    <span>Description / component</span><span>Side</span><span className="text-center">Report</span><span className="text-right">Hours</span><span className="text-right">{isFixed ? "Fixed $" : "Rate $"}</span><span className="text-right">Total</span><span />
+                  <div className={`hidden gap-2 border-b border-[var(--border)] bg-[#0a1423] px-3 py-2 text-[9px] font-medium uppercase tracking-wide text-[var(--muted)] lg:grid ${rowGridClass}`}>
+                    <span>Description</span><span>Side</span><span className="text-center">Report</span>{isPaint ? <span className="text-center">Blend</span> : null}<span className="text-right">Hours</span><span className="text-right">{isFixed ? "Fixed $" : "Rate $"}</span><span className="text-right">Total</span><span />
                   </div>
 
                   <div className="divide-y divide-[var(--border)]/70">
@@ -211,13 +216,11 @@ export default async function EstimatePage({
                         <input type="hidden" name="notes" value={item.notes ?? ""} />
                         {isFixed ? <input type="hidden" name="labour_rate" value={Number(item.labour_rate)} /> : <input type="hidden" name="fixed_amount" value={Number(item.fixed_amount)} />}
 
-                        <div className="grid gap-2 lg:grid-cols-[minmax(300px,1fr)_78px_64px_72px_92px_100px_72px] lg:items-center">
-                          <div className="grid min-w-0 gap-2 sm:grid-cols-[125px_minmax(180px,1fr)] lg:grid-cols-[115px_minmax(180px,1fr)]">
-                            <input name="component" defaultValue={item.component ?? ""} className={rowInputClass} placeholder="Component" />
-                            <input name="description" required defaultValue={item.description} className={rowInputClass} placeholder="Description" />
-                          </div>
+                        <div className={`grid gap-2 lg:items-center ${rowGridClass}`}>
+                          <input name="description" required defaultValue={item.description} className={rowInputClass} placeholder="Description" />
                           <select name="side" defaultValue={item.side ?? ""} className={rowInputClass}><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
-                          <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="human_verified" type="checkbox" defaultChecked={item.human_verified} className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Verified</span></label>
+                          <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="report_selected" type="checkbox" defaultChecked={Boolean(item.report_selected)} className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Report</span></label>
+                          {isPaint ? <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="blend_selected" type="checkbox" defaultChecked={Boolean(item.blend_selected)} className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Blend</span></label> : null}
                           <input name="labour_hours" type="number" min="0" step="0.05" defaultValue={Number(item.labour_hours)} className={`${rowInputClass} text-right tabular-nums`} />
                           {isFixed ? <input name="fixed_amount" type="number" step="0.01" defaultValue={Number(item.fixed_amount)} className={`${rowInputClass} text-right tabular-nums`} /> : <input name="labour_rate" type="number" min="0" step="0.01" defaultValue={Number(item.labour_rate)} className={`${rowInputClass} text-right tabular-nums`} />}
                           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-right text-xs font-semibold tabular-nums text-white">{money(Number(item.line_total_ex_tax), currency)}</div>
@@ -241,10 +244,11 @@ export default async function EstimatePage({
                     <input type="hidden" name="freight_amount" value="0" />
                     <input type="hidden" name="adjustment_amount" value="0" />
                     {isFixed ? <input type="hidden" name="labour_rate" value="" /> : <input type="hidden" name="fixed_amount" value="" />}
-                    <div className="grid gap-2 lg:grid-cols-[minmax(300px,1fr)_78px_64px_72px_92px_100px_72px] lg:items-center">
-                      <div className="grid min-w-0 gap-2 sm:grid-cols-[125px_minmax(180px,1fr)] lg:grid-cols-[115px_minmax(180px,1fr)]"><input name="component" className={rowInputClass} placeholder="Component" /><input name="description" required className={rowInputClass} placeholder={`Add ${category.name.toLowerCase()} operation…`} /></div>
+                    <div className={`grid gap-2 lg:items-center ${rowGridClass}`}>
+                      <input name="description" required className={rowInputClass} placeholder={`Add ${category.name.toLowerCase()} operation…`} />
                       <select name="side" className={rowInputClass} defaultValue=""><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
-                      <span className="hidden text-center text-[10px] text-[var(--muted)] lg:block">New</span>
+                      <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="report_selected" type="checkbox" className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Report</span></label>
+                      {isPaint ? <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="blend_selected" type="checkbox" className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Blend</span></label> : null}
                       <input name="labour_hours" type="number" min="0" step="0.05" className={`${rowInputClass} text-right`} placeholder="0" />
                       {isFixed ? <input name="fixed_amount" type="number" step="0.01" className={`${rowInputClass} text-right`} placeholder="0.00" /> : <input name="labour_rate" type="number" min="0" step="0.01" className={`${rowInputClass} text-right`} placeholder="Rate" />}
                       <span className="hidden rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-right text-xs text-[var(--muted)] lg:block">—</span>
@@ -257,7 +261,7 @@ export default async function EstimatePage({
               );
             })}
 
-            {categories.length === 0 ? <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">No estimate categories are configured for this workshop.</div> : null}
+            {displayCategories.length === 0 ? <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">No estimate categories are configured for this workshop.</div> : null}
           </div>
         </main>
 
@@ -265,7 +269,7 @@ export default async function EstimatePage({
           <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="mb-3 flex items-center gap-2"><ReceiptText className="size-4 text-[var(--brand)]" /><h2 className="text-sm font-semibold">Estimate totals</h2></div>
             <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1 text-xs">
-              {categories.map((category) => {
+              {displayCategories.map((category) => {
                 const amount = totals.categoryTotals[category.code] ?? 0;
                 if (!amount) return null;
                 return <div key={category.id} className="flex items-center justify-between gap-3"><span className="truncate text-[var(--muted)]">{category.name}</span><span className="tabular-nums">{money(amount, currency)}</span></div>;
