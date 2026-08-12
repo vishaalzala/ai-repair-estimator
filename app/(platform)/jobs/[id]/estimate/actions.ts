@@ -79,7 +79,7 @@ async function getCategoryAndDefaults(organizationId: string, estimate: { rate_c
   const { supabase } = await requireOrganizationContext();
   const { data: category } = await supabase
     .from("estimate_categories")
-    .select("id, pricing_basis")
+    .select("id, code, pricing_basis")
     .eq("organization_id", organizationId)
     .eq("id", categoryId)
     .eq("is_active", true)
@@ -133,7 +133,7 @@ export async function addEstimateItem(jobId: string, formData: FormData) {
     organization_id: organizationId,
     estimate_id: estimate.id,
     category_id: category.id,
-    component: value(formData, "component") || null,
+    component: null,
     side: value(formData, "side") || null,
     operation_code: value(formData, "operation_code") || null,
     description,
@@ -148,6 +148,8 @@ export async function addEstimateItem(jobId: string, formData: FormData) {
     line_total_ex_tax: line.total,
     source_type: "manual",
     human_verified: true,
+    report_selected: formData.get("report_selected") === "on",
+    blend_selected: category.code === "paint" && formData.get("blend_selected") === "on",
     notes: value(formData, "notes") || null,
     created_by: userId,
   });
@@ -173,7 +175,7 @@ export async function updateEstimateItem(jobId: string, formData: FormData) {
   const { supabase, organizationId, userId, estimate } = await ensureEstimate(jobId);
   const { data: existing } = await supabase
     .from("estimate_items")
-    .select("id, source_type, human_verified, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, notes")
+    .select("id, source_type, human_verified, report_selected, blend_selected, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, notes")
     .eq("organization_id", organizationId)
     .eq("estimate_id", estimate.id)
     .eq("id", itemId)
@@ -186,7 +188,6 @@ export async function updateEstimateItem(jobId: string, formData: FormData) {
   const line = readLineValues(formData);
   const after = {
     category_id: category.id,
-    component: value(formData, "component") || null,
     side: value(formData, "side") || null,
     operation_code: value(formData, "operation_code") || null,
     description,
@@ -200,7 +201,9 @@ export async function updateEstimateItem(jobId: string, formData: FormData) {
     adjustment_amount: line.adjustmentAmount,
     line_total_ex_tax: line.total,
     notes: value(formData, "notes") || null,
-    human_verified: formData.get("human_verified") === "on",
+    human_verified: existing.human_verified,
+    report_selected: formData.get("report_selected") === "on",
+    blend_selected: category.code === "paint" && formData.get("blend_selected") === "on",
   };
 
   const { error } = await supabase
