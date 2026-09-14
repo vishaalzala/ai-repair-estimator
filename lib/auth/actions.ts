@@ -1,7 +1,25 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+
+function encode(value: string) {
+  return encodeURIComponent(value);
+}
+
+async function getAppUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (configuredUrl) return configuredUrl;
+
+  const headerStore = await headers();
+  const origin = headerStore.get("origin");
+  if (origin) return origin.replace(/\/$/, "");
+
+  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
+  const protocol = headerStore.get("x-forwarded-proto") ?? "https";
+  return host ? `${protocol}://${host}` : null;
+}
 
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -21,6 +39,55 @@ export async function signIn(formData: FormData) {
   redirect("/dashboard");
 }
 
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+
+  if (!email) {
+    redirect("/forgot-password?error=Enter%20your%20email%20address");
+  }
+
+  const appUrl = await getAppUrl();
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    ...(appUrl ? { redirectTo: `${appUrl}/auth/confirm?next=/reset-password` } : {}),
+  });
+
+  if (error) {
+    redirect(`/forgot-password?error=${encode("Unable to send a reset link right now. Please wait a moment and try again.")}`);
+  }
+
+  redirect(`/forgot-password?message=${encode("If an account exists for that email, a password reset link has been sent. Please check your inbox and spam folder.")}`);
+}
+
+export async function updatePassword(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirm_password") ?? "");
+
+  if (password.length < 10) {
+    redirect(`/reset-password?error=${encode("Use a password of at least 10 characters.")}`);
+  }
+
+  if (password !== confirmPassword) {
+    redirect(`/reset-password?error=${encode("Passwords do not match.")}`);
+  }
+
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    redirect(`/forgot-password?error=${encode("This reset link is invalid or has expired. Please request a new one.")}`);
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    redirect(`/reset-password?error=${encode("Unable to update your password. Please request a new reset link and try again.")}`);
+  }
+
+  await supabase.auth.signOut();
+  redirect(`/login?message=${encode("Password updated successfully. Sign in with your new password.")}`);
+}
+
 export async function signUp(formData: FormData) {
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -36,7 +103,7 @@ export async function signUp(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const appUrl = await getAppUrl();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
