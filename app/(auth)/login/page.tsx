@@ -36,7 +36,13 @@ export default async function LoginPage({
 
           <form action={signIn} className="mt-8 space-y-5">
             <label className="grid gap-2 text-sm"><span className="text-xs font-medium text-[var(--muted)]">Email address</span><input name="email" type="email" autoComplete="email" required className="rounded-xl border border-[var(--border)] bg-[#091322] px-3.5 py-3 outline-none transition focus:border-[var(--brand)]" placeholder="you@workshop.co.nz" /></label>
-            <label className="grid gap-2 text-sm"><span className="text-xs font-medium text-[var(--muted)]">Password</span><input name="password" type="password" autoComplete="current-password" required className="rounded-xl border border-[var(--border)] bg-[#091322] px-3.5 py-3 outline-none transition focus:border-[var(--brand)]" /></label>
+            <label className="grid gap-2 text-sm">
+              <span className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-[var(--muted)]">Password</span>
+                <Link href="/forgot-password" className="text-xs font-semibold text-[var(--brand)] transition hover:text-[var(--brand-strong)]">Forgot password?</Link>
+              </span>
+              <input name="password" type="password" autoComplete="current-password" required className="rounded-xl border border-[var(--border)] bg-[#091322] px-3.5 py-3 outline-none transition focus:border-[var(--brand)]" />
+            </label>
             <button type="submit" className="w-full rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)]">Sign in</button>
           </form>
 
