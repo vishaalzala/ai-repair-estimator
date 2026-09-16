@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { syncAutomaticParkingFeesForOpenEstimates } from "@/lib/estimating/parking-fees";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -88,4 +89,38 @@ export async function updateRateCardRate(formData: FormData) {
 
   revalidatePath("/settings");
   redirect("/settings?message=Rate%20updated");
+}
+
+export async function updateParkingFeeSettings(formData: FormData) {
+  const { supabase, organizationId, role } = await requireOrganizationContext();
+  if (!["owner", "admin", "manager"].includes(role)) {
+    redirect("/settings/workshop?error=Only%20workshop%20management%20can%20change%20parking%20fees");
+  }
+
+  const enabled = formData.get("parking_fee_enabled") === "on";
+  const rateRaw = text(formData, "parking_fee_daily_rate");
+  const dailyRate = rateRaw === "" ? 0 : Number(rateRaw);
+
+  if (!Number.isFinite(dailyRate) || dailyRate < 0 || (enabled && dailyRate <= 0)) {
+    redirect("/settings/workshop?error=Enter%20a%20parking%20fee%20greater%20than%200%20before%20enabling%20it");
+  }
+
+  const { error } = await supabase
+    .from("workshop_settings")
+    .update({
+      parking_fee_enabled: enabled,
+      parking_fee_daily_rate: dailyRate,
+    })
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    console.error("Parking fee settings update failed", error.code);
+    redirect("/settings/workshop?error=Unable%20to%20save%20parking%20fee%20settings");
+  }
+
+  await syncAutomaticParkingFeesForOpenEstimates();
+
+  revalidatePath("/settings/workshop");
+  revalidatePath("/jobs");
+  redirect(`/settings/workshop?message=${enabled ? "Parking%20fees%20enabled%20and%20draft%20estimates%20updated" : "Parking%20fees%20disabled%20and%20draft%20charges%20removed"}`);
 }

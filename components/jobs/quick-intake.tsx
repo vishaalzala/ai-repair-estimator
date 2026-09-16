@@ -90,14 +90,23 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
         }
       }
 
-      setStatus("Reading vehicle details and preparing the draft estimate…");
+      setStatus("Reading the photos and your notes…");
       const response = await fetch(`/api/jobs/${jobId}/ai-intake`, { method: "POST" });
       const result = (await response.json().catch(() => ({}))) as { message?: string };
 
       if (!response.ok && response.status !== 202) {
         setStatus(result.message ?? "Photos are saved, but AI intake could not finish. Opening the draft estimate.");
+      } else if (response.status === 202) {
+        setStatus(result.message ?? "Photos are saved. Opening the draft estimate.");
       } else {
-        setStatus(result.message ?? "AI Quick Intake complete. Opening the draft estimate…");
+        setStatus("Photo analysis complete. Building the full estimate from the images, your notes and workshop rates…");
+        const fullResponse = await fetch(`/api/jobs/${jobId}/ai-full-estimate`, { method: "POST" });
+        const fullResult = (await fullResponse.json().catch(() => ({}))) as { message?: string };
+        if (fullResponse.ok) {
+          setStatus(fullResult.message ?? "Full AI estimate complete. Opening the estimate…");
+        } else {
+          setStatus(fullResult.message ?? "Photo analysis is saved, but the full estimate needs review. Opening the estimate.");
+        }
       }
 
       router.push(`/jobs/${jobId}/estimate`);
@@ -124,7 +133,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">AI Quick Intake</div>
             <h2 className="mt-1 text-xl font-semibold">Upload the car. Start the estimate.</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">Add vehicle photos and anything you already know. Customer details can stay completely empty. AI will read supported vehicle details, identify visible damage and prepare draft repair operations for estimator review.</p>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">Add vehicle photos and anything you already know. Customer details can stay completely empty. AI uses the photos and your notes together to read supported vehicle details, identify visible damage and build the preliminary estimate for estimator review.</p>
           </div>
         </div>
       </div>
@@ -172,8 +181,9 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
 
         <div>
           <label className="grid gap-2 text-sm">
-            <span className="text-xs font-medium text-[var(--muted)]">Anything you already know <span className="font-normal">(optional)</span></span>
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-[var(--border)] bg-[#091322] px-4 py-3 text-sm outline-none transition focus:border-[var(--brand)]" placeholder="Example: front left impact, insurer assessment, warning light on dash…" />
+            <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-[var(--muted)]">Anything you already know <span className="rounded-full bg-[rgba(88,211,178,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">Recommended</span></span>
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-[var(--border)] bg-[#091322] px-4 py-3 text-sm outline-none transition focus:border-[var(--brand)]" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
+            <span className="text-xs leading-5 text-[var(--muted)]">AI combines these notes with the uploaded damage photos when deciding what repair operations should be included in the estimate.</span>
           </label>
         </div>
 
@@ -195,7 +205,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
           </div>
           <button type="button" onClick={startQuickIntake} disabled={working || !files.length} className="inline-flex min-w-48 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">
             {working ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}
-            {working ? "Building draft…" : "Start AI estimate"}
+            {working ? "Building estimate…" : "Start AI estimate"}
           </button>
         </div>
       </div>
