@@ -93,6 +93,7 @@ export async function generateRepairEstimateDraft(input: {
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
   if (!input.model) throw new Error("AI_ESTIMATE_MODEL is not configured");
 
+  const client = new OpenAI({ apiKey });
   const photos = input.photos ?? [];
   const photoLegend = photos.length
     ? photos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; category=${photo.category}; file=${photo.fileName}`).join("\n")
