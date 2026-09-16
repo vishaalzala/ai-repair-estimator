@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { syncAutomaticParkingFeesForOpenEstimates } from "@/lib/estimating/parking-fees";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -117,24 +118,9 @@ export async function updateParkingFeeSettings(formData: FormData) {
     redirect("/settings/workshop?error=Unable%20to%20save%20parking%20fee%20settings");
   }
 
-  if (!enabled) {
-    const { data: editableEstimates } = await supabase
-      .from("estimates")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .in("status", ["draft", "ready_for_approval"]);
-    const estimateIds = (editableEstimates ?? []).map((estimate) => estimate.id);
-    if (estimateIds.length) {
-      await supabase
-        .from("estimate_items")
-        .delete()
-        .eq("organization_id", organizationId)
-        .in("estimate_id", estimateIds)
-        .eq("source_type", "rule")
-        .eq("source_ref", "parking_fee_daily");
-    }
-  }
+  await syncAutomaticParkingFeesForOpenEstimates();
 
   revalidatePath("/settings/workshop");
-  redirect(`/settings/workshop?message=${enabled ? "Parking%20fees%20enabled" : "Parking%20fees%20disabled"}`);
+  revalidatePath("/jobs");
+  redirect(`/settings/workshop?message=${enabled ? "Parking%20fees%20enabled%20and%20draft%20estimates%20updated" : "Parking%20fees%20disabled%20and%20draft%20charges%20removed"}`);
 }
