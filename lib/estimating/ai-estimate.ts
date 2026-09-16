@@ -11,6 +11,22 @@ function clean(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function fallbackLabourHours(operationCode: string) {
+  switch (operationCode) {
+    case "REPAIR": return 1;
+    case "CUT&WELD": return 1;
+    case "ALIGN": return 0.5;
+    case "R&R": return 0.5;
+    case "MECHANICAL": return 0.5;
+    case "ELECTRICAL": return 0.5;
+    case "DIAGNOSTIC": return 0.5;
+    case "ADAS": return 0.5;
+    case "SRS": return 0.5;
+    case "INSPECT": return 0.25;
+    default: return 0.5;
+  }
+}
+
 async function ensurePrimaryEstimate(jobId: string) {
   const context = await requireOrganizationContext();
   const { supabase, organizationId, userId } = context;
@@ -121,6 +137,13 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       const rate = rateByCategoryId.get(category.id);
       return `${category.code} = ${category.name}; pricing=${category.pricing_basis}; hourly=${rate?.hourly_rate ?? "TBC"}; fixed=${rate?.fixed_rate ?? "TBC"}`;
     }),
+    "\nInsurance-project estimate pattern learned from workshop examples:",
+    "- One operation/component per line. Never combine multiple R&R items into one description.",
+    "- R&R values historically map to workshop time at the configured labour rate. At $120/hr: 0.1h=$12, 0.2h=$24, 0.25h=$30, 0.4h=$48, 0.5h=$60, 0.75h=$90, 1h=$120, 1.5h=$180, 2h=$240, 3h=$360, 5h=$600.",
+    "- Separate repair lines from paint lines. Paint is one line per painted component; blend is a separate Paint line with Blend selected.",
+    "- List replacement parts individually as TBC/PartsTrader until real supplier pricing exists; never invent parts prices.",
+    "- Trial fit/gap check, scans, decals/livery, towing and specialist outwork are separate operations when relevant.",
+    "- Panel materials, paint materials, consumables and miscellaneous charges belong in their own sections rather than being hidden inside labour.",
     "\nExisting manual/human-verified lines (do not duplicate):",
     existingContext,
   ].join("\n");
@@ -142,6 +165,7 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       damage_findings: damageAnalysis.findings.length,
       protected_existing_items: protectedItems.length,
       vision_vehicle_confidence: damageAnalysis.vehicleIdentification.confidence,
+      estimate_style: "insurance_project_line_by_line",
     },
     created_by: userId,
   }).select("id").single();
@@ -169,12 +193,18 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       const rate = rateByCategoryId.get(category.id);
       const blendRate = blendCategory ? rateByCategoryId.get(blendCategory.id) : null;
       const labourRate = category.pricing_basis === "hourly" ? Number(rate?.hourly_rate ?? 0) : 0;
+      const isChargeableHourly = category.pricing_basis === "hourly" && operation.pricingStatus !== "included";
+      const labourHours = category.pricing_basis === "hourly"
+        ? (isChargeableHourly && operation.labourHours <= 0 ? fallbackLabourHours(operation.operationCode) : operation.labourHours)
+        : 0;
+      const aiManualAmount = operation.pricingStatus === "ai_estimate" ? Number(operation.suggestedAmount ?? 0) : 0;
       const fixedAmount = isBlend
         ? Number(blendRate?.fixed_rate ?? 0)
         : category.pricing_basis === "fixed"
-          ? Number(rate?.fixed_rate ?? 0)
-          : 0;
-      const labourHours = category.pricing_basis === "hourly" ? operation.labourHours : 0;
+          ? (Number(rate?.fixed_rate ?? 0) || aiManualAmount)
+          : ["manual", "formula"].includes(category.pricing_basis)
+            ? aiManualAmount
+            : 0;
       const calculated = calculateLineTotal({
         quantity: operation.quantity,
         labourHours,
@@ -190,9 +220,11 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
         ? "REPLACE — part price TBC. Obtain supplier/PartsTrader price before approval."
         : operation.pricingStatus === "manual_tbc"
           ? "Amount TBC — estimator/workshop input required before approval."
-          : operation.pricingStatus === "included"
-            ? "Included operation; no separate charge generated."
-            : null;
+          : operation.pricingStatus === "ai_estimate"
+            ? "AI preliminary amount based on workshop/historical estimating context — confirm before issue."
+            : operation.pricingStatus === "included"
+              ? "Included operation; no separate charge generated."
+              : null;
       const notes = [operation.notes, pricingNote, "AI-generated preliminary line — estimator review required."].filter(Boolean).join(" ");
 
       return [{
@@ -278,7 +310,7 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
         actor_user_id: userId,
         event_type: "ai_estimate_generated",
         title: "AI full estimate generated",
-        details: { ai_run_id: run.id, estimate_id: estimate.id, items: inserted.length, model },
+        details: { ai_run_id: run.id, estimate_id: estimate.id, items: inserted.length, model, estimate_style: "insurance_project_line_by_line" },
       }),
     ]);
 

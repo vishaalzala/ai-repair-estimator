@@ -5,6 +5,7 @@ import { Camera, FileImage, LoaderCircle, Sparkles, Upload, X } from "lucide-rea
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createQuickJob } from "@/app/(platform)/jobs/actions";
+import { PreparingEstimateOverlay } from "@/components/jobs/preparing-estimate-overlay";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const maxBytes = 25 * 1024 * 1024;
@@ -14,6 +15,18 @@ function safeFileName(name: string) {
   const extension = name.includes(".") ? `.${name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "")}` : "";
   return `${crypto.randomUUID()}${extension}`;
 }
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+type EstimateStatus = {
+  status?: "preparing" | "completed" | "failed";
+  stage?: string;
+  message?: string;
+  itemCount?: number;
+  error?: string | null;
+};
 
 export function QuickIntake({ organizationId, userId }: { organizationId: string; userId: string }) {
   const router = useRouter();
@@ -27,6 +40,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
   const [notes, setNotes] = useState("");
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [backgroundJobId, setBackgroundJobId] = useState<string | null>(null);
 
   const totalSize = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
 
@@ -38,6 +52,32 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
     else setStatus(null);
   }
 
+  async function waitForEstimate(jobId: string, startedAt: string) {
+    let temporaryErrors = 0;
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await sleep(1800);
+      try {
+        const response = await fetch(`/api/jobs/${jobId}/ai-estimate/status?since=${encodeURIComponent(startedAt)}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(`Status request failed (${response.status})`);
+        const result = (await response.json()) as EstimateStatus;
+        temporaryErrors = 0;
+        if (result.message) setStatus(result.message);
+        if (result.status === "completed") return result;
+        if (result.status === "failed") throw new Error(result.error || result.message || "AI estimate generation failed");
+      } catch (error) {
+        temporaryErrors += 1;
+        if (temporaryErrors >= 5) throw error;
+      }
+    }
+
+    return {
+      status: "preparing" as const,
+      message: "The estimate is still running in the background. You can open the job and return when it is ready.",
+    };
+  }
+
   async function startQuickIntake() {
     if (!files.length) {
       setStatus("Add at least one vehicle photo to start AI Quick Intake.");
@@ -46,6 +86,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
 
     setWorking(true);
     setStatus("Creating assessment…");
+    setBackgroundJobId(null);
     let jobId: string | null = null;
 
     try {
@@ -90,125 +131,136 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
         }
       }
 
-      setStatus("Reading the photos and your notes…");
-      const response = await fetch(`/api/jobs/${jobId}/ai-intake`, { method: "POST" });
-      const result = (await response.json().catch(() => ({}))) as { message?: string };
-
-      if (!response.ok && response.status !== 202) {
-        setStatus(result.message ?? "Photos are saved, but AI intake could not finish. Opening the draft estimate.");
-      } else if (response.status === 202) {
-        setStatus(result.message ?? "Photos are saved. Opening the draft estimate.");
-      } else {
-        setStatus("Photo analysis complete. Building the full estimate from the images, your notes and workshop rates…");
-        const fullResponse = await fetch(`/api/jobs/${jobId}/ai-full-estimate`, { method: "POST" });
-        const fullResult = (await fullResponse.json().catch(() => ({}))) as { message?: string };
-        if (fullResponse.ok) {
-          setStatus(fullResult.message ?? "Full AI estimate complete. Opening the estimate…");
-        } else {
-          setStatus(fullResult.message ?? "Photo analysis is saved, but the full estimate needs review. Opening the estimate.");
-        }
+      setStatus("Starting the AI estimator…");
+      const startResponse = await fetch(`/api/jobs/${jobId}/ai-estimate/start`, { method: "POST" });
+      const startResult = (await startResponse.json().catch(() => ({}))) as { startedAt?: string; message?: string };
+      if (!startResponse.ok || !startResult.startedAt) {
+        throw new Error(startResult.message ?? "Unable to start the AI estimator.");
       }
 
-      router.push(`/jobs/${jobId}/estimate`);
+      setBackgroundJobId(jobId);
+      setStatus("Reading the vehicle, damage photos and your notes…");
+      const result = await waitForEstimate(jobId, startResult.startedAt);
+
+      if (result.status === "completed") {
+        setStatus(result.message ?? "Estimate ready. Opening it now…");
+        router.push(`/jobs/${jobId}/estimate?message=${encodeURIComponent(result.message ?? "AI estimate ready for review")}`);
+        router.refresh();
+        return;
+      }
+
+      setStatus(result.message ?? "The estimate is still running in the background.");
+      router.push(`/jobs/${jobId}`);
       router.refresh();
     } catch (error) {
       console.error("AI Quick Intake failed", error);
-      if (jobId) {
-        setStatus("The assessment was created, but intake stopped while uploading or analysing photos. Opening the job so nothing is lost.");
-        router.push(`/jobs/${jobId}/photos`);
-        router.refresh();
-      } else {
-        setStatus(error instanceof Error ? error.message : "Unable to start AI Quick Intake right now.");
-      }
-    } finally {
+      const message = error instanceof Error ? error.message : "Unable to start AI Quick Intake right now.";
+      setStatus(message);
       setWorking(false);
+      if (jobId) {
+        router.push(`/jobs/${jobId}/estimate?error=${encodeURIComponent(message)}`);
+        router.refresh();
+      }
     }
   }
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-[var(--brand)]/30 bg-[linear-gradient(145deg,rgba(88,211,178,0.10),rgba(12,25,42,0.96)_38%)] shadow-2xl shadow-black/10">
-      <div className="border-b border-[var(--border)] px-5 py-5 sm:px-7">
-        <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[var(--brand)] text-[#06110e]"><Sparkles className="size-5" /></span>
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">AI Quick Intake</div>
-            <h2 className="mt-1 text-xl font-semibold">Upload the car. Start the estimate.</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">Add vehicle photos and anything you already know. Customer details can stay completely empty. AI uses the photos and your notes together to read supported vehicle details, identify visible damage and build the preliminary estimate for estimator review.</p>
-          </div>
-        </div>
-      </div>
+    <>
+      {working ? (
+        <PreparingEstimateOverlay
+          message={status ?? "Preparing the estimate…"}
+          canContinueInBackground={Boolean(backgroundJobId)}
+          onContinueInBackground={backgroundJobId ? () => {
+            router.push(`/jobs/${backgroundJobId}`);
+            router.refresh();
+          } : undefined}
+        />
+      ) : null}
 
-      <div className="space-y-5 p-5 sm:p-7">
-        <div
-          className="grid min-h-44 cursor-pointer place-items-center rounded-2xl border border-dashed border-[var(--brand)]/45 bg-[#07111f]/70 px-5 text-center transition hover:border-[var(--brand)]"
-          onClick={() => !working && fileRef.current?.click()}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (!working) chooseFiles(Array.from(event.dataTransfer.files));
-          }}
-        >
-          <div>
-            <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-[var(--surface-3)] text-[var(--brand)]"><Camera className="size-5" /></div>
-            <p className="mt-3 text-sm font-semibold">Drop vehicle photos here, or click to choose</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Up to {maxFiles} images · JPG, PNG, WebP, HEIC or HEIF · 25 MB each</p>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-            capture="environment"
-            multiple
-            className="hidden"
-            disabled={working}
-            onChange={(event) => chooseFiles(Array.from(event.target.files ?? []))}
-          />
-        </div>
-
-        {files.length ? (
-          <div className="rounded-2xl border border-[var(--border)] bg-[#091322]/80 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{files.length} photo{files.length === 1 ? "" : "s"} ready</span><span className="text-[var(--muted)]">{(totalSize / 1024 / 1024).toFixed(1)} MB</span></div>
-            <div className="flex flex-wrap gap-2">
-              {files.map((file, index) => (
-                <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--muted)]">
-                  <FileImage className="size-3.5 shrink-0" /><span className="max-w-48 truncate">{file.name}</span>
-                  <button type="button" disabled={working} aria-label={`Remove ${file.name}`} onClick={(event) => { event.stopPropagation(); setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[var(--muted)] hover:text-white"><X className="size-3.5" /></button>
-                </span>
-              ))}
+      <section className="overflow-hidden rounded-3xl border border-[var(--brand)]/30 bg-[linear-gradient(145deg,rgba(88,211,178,0.10),rgba(12,25,42,0.96)_38%)] shadow-2xl shadow-black/10">
+        <div className="border-b border-[var(--border)] px-5 py-5 sm:px-7">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[var(--brand)] text-[#06110e]"><Sparkles className="size-5" /></span>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">AI Quick Intake</div>
+              <h2 className="mt-1 text-xl font-semibold">Upload the car. Start the estimate.</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">Add vehicle photos and anything you already know. Customer details can stay completely empty. AI uses the photos and your notes together to read supported vehicle details, identify visible damage and build the preliminary estimate for estimator review.</p>
             </div>
           </div>
-        ) : null}
-
-        <div>
-          <label className="grid gap-2 text-sm">
-            <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-[var(--muted)]">Anything you already know <span className="rounded-full bg-[rgba(88,211,178,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">Recommended</span></span>
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-[var(--border)] bg-[#091322] px-4 py-3 text-sm outline-none transition focus:border-[var(--brand)]" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
-            <span className="text-xs leading-5 text-[var(--muted)]">AI combines these notes with the uploaded damage photos when deciding what repair operations should be included in the estimate.</span>
-          </label>
         </div>
 
-        <details className="rounded-2xl border border-[var(--border)] bg-[#091322]/70">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Add known vehicle details <span className="text-xs font-normal text-[var(--muted)]">(optional — AI fills blanks only)</span></summary>
-          <div className="grid gap-4 border-t border-[var(--border)] p-4 md:grid-cols-2 lg:grid-cols-5">
-            <label className="grid gap-1.5 text-xs text-[var(--muted)]">Registration<input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-            <label className="grid gap-1.5 text-xs text-[var(--muted)]">VIN<input value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-            <label className="grid gap-1.5 text-xs text-[var(--muted)]">Year<input value={modelYear} onChange={(event) => setModelYear(event.target.value)} inputMode="numeric" disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-            <label className="grid gap-1.5 text-xs text-[var(--muted)]">Make<input value={make} onChange={(event) => setMake(event.target.value)} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-            <label className="grid gap-1.5 text-xs text-[var(--muted)]">Model<input value={model} onChange={(event) => setModel(event.target.value)} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+        <div className="space-y-5 p-5 sm:p-7">
+          <div
+            className="grid min-h-44 cursor-pointer place-items-center rounded-2xl border border-dashed border-[var(--brand)]/45 bg-[#07111f]/70 px-5 text-center transition hover:border-[var(--brand)]"
+            onClick={() => !working && fileRef.current?.click()}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (!working) chooseFiles(Array.from(event.dataTransfer.files));
+            }}
+          >
+            <div>
+              <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-[var(--surface-3)] text-[var(--brand)]"><Camera className="size-5" /></div>
+              <p className="mt-3 text-sm font-semibold">Drop vehicle photos here, or click to choose</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Up to {maxFiles} images · JPG, PNG, WebP, HEIC or HEIF · 25 MB each</p>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              capture="environment"
+              multiple
+              className="hidden"
+              disabled={working}
+              onChange={(event) => chooseFiles(Array.from(event.target.files ?? []))}
+            />
           </div>
-        </details>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-xs leading-5 text-[var(--muted)]">
-            <p>Customer name is not required. AI suggestions remain unverified until an estimator reviews them.</p>
-            {status ? <p aria-live="polite" className="mt-1 text-[var(--brand)]">{status}</p> : null}
+          {files.length ? (
+            <div className="rounded-2xl border border-[var(--border)] bg-[#091322]/80 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{files.length} photo{files.length === 1 ? "" : "s"} ready</span><span className="text-[var(--muted)]">{(totalSize / 1024 / 1024).toFixed(1)} MB</span></div>
+              <div className="flex flex-wrap gap-2">
+                {files.map((file, index) => (
+                  <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--muted)]">
+                    <FileImage className="size-3.5 shrink-0" /><span className="max-w-48 truncate">{file.name}</span>
+                    <button type="button" disabled={working} aria-label={`Remove ${file.name}`} onClick={(event) => { event.stopPropagation(); setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[var(--muted)] hover:text-white"><X className="size-3.5" /></button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div>
+            <label className="grid gap-2 text-sm">
+              <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-[var(--muted)]">Anything you already know <span className="rounded-full bg-[rgba(88,211,178,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">Recommended</span></span>
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-[var(--border)] bg-[#091322] px-4 py-3 text-sm outline-none transition focus:border-[var(--brand)]" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
+              <span className="text-xs leading-5 text-[var(--muted)]">AI combines these notes with the uploaded damage photos when deciding what repair operations should be included in the estimate.</span>
+            </label>
           </div>
-          <button type="button" onClick={startQuickIntake} disabled={working || !files.length} className="inline-flex min-w-48 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">
-            {working ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}
-            {working ? "Building estimate…" : "Start AI estimate"}
-          </button>
+
+          <details className="rounded-2xl border border-[var(--border)] bg-[#091322]/70">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Add known vehicle details <span className="text-xs font-normal text-[var(--muted)]">(optional — AI fills blanks only)</span></summary>
+            <div className="grid gap-4 border-t border-[var(--border)] p-4 md:grid-cols-2 lg:grid-cols-5">
+              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Registration<input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+              <label className="grid gap-1.5 text-xs text-[var(--muted)]">VIN<input value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Year<input value={modelYear} onChange={(event) => setModelYear(event.target.value)} inputMode="numeric" disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Make<input value={make} onChange={(event) => setMake(event.target.value)} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Model<input value={model} onChange={(event) => setModel(event.target.value)} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+            </div>
+          </details>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs leading-5 text-[var(--muted)]">
+              <p>Customer name is not required. AI suggestions remain unverified until an estimator reviews them.</p>
+              {status ? <p aria-live="polite" className="mt-1 text-[var(--brand)]">{status}</p> : null}
+            </div>
+            <button type="button" onClick={startQuickIntake} disabled={working || !files.length} className="inline-flex min-w-48 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">
+              {working ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}
+              {working ? "Preparing estimate…" : "Start AI estimate"}
+            </button>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
