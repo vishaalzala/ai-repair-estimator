@@ -1,0 +1,14 @@
+import Link from "next/link";
+import { requirePlatformAdmin } from "@/lib/admin/context";
+
+export default async function AdminEstimatesPage() {
+  const { supabase } = await requirePlatformAdmin();
+  const [estimateResult, jobResult, orgResult, chargeResult] = await Promise.all([
+    supabase.from("estimates").select("id,organization_id,job_id,status,estimate_type,currency,created_at,updated_at").order("created_at", { ascending: false }).limit(200),
+    supabase.from("jobs").select("id,job_number,status,organization_id").limit(5000),
+    supabase.from("organizations").select("id,name"),
+    supabase.from("estimate_ai_charges").select("estimate_id,provider_cost_nzd,customer_charge_nzd,status"),
+  ]);
+  const jobs = new Map((jobResult.data ?? []).map(j=>[j.id,j])); const orgs = new Map((orgResult.data ?? []).map(o=>[o.id,o.name])); const charges = new Map((chargeResult.data ?? []).filter(c=>c.estimate_id).map(c=>[c.estimate_id!,c]));
+  return <div className="mx-auto max-w-[1600px] p-5 sm:p-7 lg:p-9"><header className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">Operational review</p><h1 className="mt-2 text-3xl font-semibold">Estimates</h1><p className="mt-2 text-sm text-[var(--muted)]">Recent estimates across every tenant, including AI cost and customer usage charge.</p></header><div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-[var(--border)] text-[11px] uppercase tracking-wide text-[var(--muted)]"><tr>{["Job","Workshop","Estimate","AI cost","AI charge","Billing","Created"].map(h=><th key={h} className="px-4 py-3">{h}</th>)}</tr></thead><tbody>{(estimateResult.data ?? []).map(e=>{const job=jobs.get(e.job_id); const charge=charges.get(e.id); return <tr key={e.id} className="border-b border-[var(--border)]/70 last:border-0"><td className="px-4 py-4"><div className="font-semibold">{job?.job_number ?? e.job_id.slice(0,8)}</div><div className="text-xs capitalize text-[var(--muted)]">{job?.status ?? "—"}</div></td><td className="px-4 py-4">{orgs.get(e.organization_id) ?? "Unknown"}</td><td className="px-4 py-4 capitalize">{e.status} · {e.estimate_type}</td><td className="px-4 py-4">${Number(charge?.provider_cost_nzd ?? 0).toFixed(4)}</td><td className="px-4 py-4">${Number(charge?.customer_charge_nzd ?? 0).toFixed(4)}</td><td className="px-4 py-4 capitalize">{charge?.status ?? "not metered"}</td><td className="px-4 py-4 text-xs text-[var(--muted)]">{new Date(e.created_at).toLocaleString("en-NZ")}</td></tr>})}</tbody></table></div><div className="mt-4 text-xs text-[var(--muted)]">Workshop users remain responsible for reviewing and approving AI-generated estimate lines before issue.</div></div>;
+}
