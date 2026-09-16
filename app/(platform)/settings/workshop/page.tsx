@@ -1,6 +1,6 @@
 import { Building2, Calculator, ReceiptText, ShieldCheck } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
-import { updateRateCardRate, updateWorkshopProfile } from "../actions";
+import { updateParkingFeeSettings, updateRateCardRate, updateWorkshopProfile } from "../actions";
 
 const inputClass = "rounded-xl border border-[var(--border)] bg-[#091322] px-3 py-2.5 text-sm outline-none transition focus:border-[var(--brand)] disabled:opacity-60";
 
@@ -15,7 +15,7 @@ export default async function WorkshopSettingsPage({
 
   const [organizationResult, settingsResult, rateCardResult, categoryResult] = await Promise.all([
     supabase.from("organizations").select("id, name, slug").eq("id", organizationId).maybeSingle(),
-    supabase.from("workshop_settings").select("trading_name, legal_name, gst_number, email, phone, address_line_1, address_line_2, suburb, city, postcode, country_code, default_currency, gst_rate, estimate_valid_days, estimate_terms").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("workshop_settings").select("trading_name, legal_name, gst_number, email, phone, address_line_1, address_line_2, suburb, city, postcode, country_code, default_currency, gst_rate, estimate_valid_days, estimate_terms, parking_fee_enabled, parking_fee_daily_rate").eq("organization_id", organizationId).maybeSingle(),
     supabase.from("rate_cards").select("id, name, is_default, is_active").eq("organization_id", organizationId).eq("is_default", true).eq("is_active", true).maybeSingle(),
     supabase.from("estimate_categories").select("id, code, name, pricing_basis, sort_order, is_active").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
   ]);
@@ -62,7 +62,29 @@ export default async function WorkshopSettingsPage({
 
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="mb-5 flex items-start justify-between gap-4"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--surface-3)] text-[var(--brand)]"><Calculator className="size-4" /></span><div><h2 className="font-semibold">{rateCard?.name || "Default rate card"}</h2><p className="mt-1 text-xs leading-5 text-[var(--muted)]">These initial workshop defaults are editable. AI never chooses or changes commercial rates.</p></div></div><ShieldCheck className="size-5 shrink-0 text-[var(--brand)]" /></div>
-          {!rateCard ? <p className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">No default rate card exists. Complete workshop onboarding or contact platform support.</p> : <div className="space-y-2">{categories.map((category) => { const rate = rateByCategory.get(category.id); const usesHours = category.pricing_basis === "hourly"; const usesFixed = category.pricing_basis === "fixed"; return <form action={updateRateCardRate} key={category.id} className="grid gap-3 rounded-xl border border-[var(--border)] bg-[#091322] p-3 sm:grid-cols-[1fr_130px_130px_auto] sm:items-end"><input type="hidden" name="rate_card_id" value={rateCard.id} /><input type="hidden" name="category_id" value={category.id} /><div><p className="text-sm font-medium">{category.name}</p><p className="mt-1 text-[10px] uppercase tracking-wide text-[var(--muted)]">{category.pricing_basis}</p></div><label className="grid gap-1"><span className="text-[10px] text-[var(--muted)]">Hourly rate</span><input name="hourly_rate" type="number" min="0" step="0.01" disabled={!canManage || !usesHours} defaultValue={rate?.hourly_rate ?? ""} className={inputClass} placeholder={usesHours ? "0.00" : "—"} /></label><label className="grid gap-1"><span className="text-[10px] text-[var(--muted)]">Fixed rate</span><input name="fixed_rate" type="number" min="0" step="0.01" disabled={!canManage || !usesFixed} defaultValue={rate?.fixed_rate ?? ""} className={inputClass} placeholder={usesFixed ? "0.00" : "—"} /></label>{canManage ? <button className="rounded-xl border border-[var(--border)] px-3 py-2.5 text-xs font-semibold hover:bg-[var(--surface-2)]">Save</button> : <span />}</form>; })}</div>}
+          {!rateCard ? <p className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">No default rate card exists. Complete workshop onboarding or contact platform support.</p> : <div className="space-y-2">
+            {categories.map((category) => {
+              const rate = rateByCategory.get(category.id);
+              const usesHours = category.pricing_basis === "hourly";
+              const usesFixed = category.pricing_basis === "fixed";
+              return <div key={category.id} className="space-y-2">
+                <form action={updateRateCardRate} className="grid gap-3 rounded-xl border border-[var(--border)] bg-[#091322] p-3 sm:grid-cols-[1fr_130px_130px_auto] sm:items-end">
+                  <input type="hidden" name="rate_card_id" value={rateCard.id} /><input type="hidden" name="category_id" value={category.id} />
+                  <div><p className="text-sm font-medium">{category.name}</p><p className="mt-1 text-[10px] uppercase tracking-wide text-[var(--muted)]">{category.pricing_basis}</p></div>
+                  <label className="grid gap-1"><span className="text-[10px] text-[var(--muted)]">Hourly rate</span><input name="hourly_rate" type="number" min="0" step="0.01" disabled={!canManage || !usesHours} defaultValue={rate?.hourly_rate ?? ""} className={inputClass} placeholder={usesHours ? "0.00" : "—"} /></label>
+                  <label className="grid gap-1"><span className="text-[10px] text-[var(--muted)]">Fixed rate</span><input name="fixed_rate" type="number" min="0" step="0.01" disabled={!canManage || !usesFixed} defaultValue={rate?.fixed_rate ?? ""} className={inputClass} placeholder={usesFixed ? "0.00" : "—"} /></label>
+                  {canManage ? <button className="rounded-xl border border-[var(--border)] px-3 py-2.5 text-xs font-semibold hover:bg-[var(--surface-2)]">Save</button> : <span />}
+                </form>
+
+                {category.code === "miscellaneous" ? <form action={updateParkingFeeSettings} className="ml-3 grid gap-3 rounded-xl border border-[var(--brand)]/20 bg-[rgba(88,211,178,0.05)] p-4 sm:grid-cols-[1fr_120px_150px_auto] sm:items-end">
+                  <div><p className="text-sm font-semibold">Parking fees</p><p className="mt-1 text-xs leading-5 text-[var(--muted)]">Automatic Miscellaneous charge per commenced day from the job creation time. Draft estimates update when opened.</p></div>
+                  <label className="grid gap-1"><span className="text-[10px] text-[var(--muted)]">Status</span><span className="flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[#091322] px-3 text-xs"><input name="parking_fee_enabled" type="checkbox" disabled={!canManage} defaultChecked={Boolean(settings?.parking_fee_enabled)} className="size-4 accent-[var(--brand)]" /> Enable</span></label>
+                  <label className="grid gap-1"><span className="text-[10px] text-[var(--muted)]">Price / day</span><input name="parking_fee_daily_rate" type="number" min="0" step="0.01" disabled={!canManage} defaultValue={Number(settings?.parking_fee_daily_rate ?? 0)} className={inputClass} placeholder="0.00" /></label>
+                  {canManage ? <button className="rounded-xl bg-[var(--brand)] px-3 py-2.5 text-xs font-semibold text-[#06110e]">Save parking</button> : <span />}
+                </form> : null}
+              </div>;
+            })}
+          </div>}
         </section>
       </div>
     </div>
