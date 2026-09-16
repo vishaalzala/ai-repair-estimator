@@ -106,7 +106,7 @@ export async function analyzeVehicleIntake(input: {
   > = [
     {
       type: "input_text",
-      text: `${hintText}\n\nPHOTO LEGEND\n${photoLegend}\n\nExtract vehicle identity where supported by evidence, classify each photo, identify visible damage, and prepare preliminary estimating-operation suggestions for human review.`,
+      text: `${hintText}\n\nPHOTO LEGEND\n${photoLegend}\n\nExtract vehicle identity where supported by evidence, classify each photo, identify visible damage, and prepare preliminary estimating-operation suggestions for human review. Also record visible estimate-relevant attachments/accessories around the repair area (lamps, trims, mouldings, grilles, liners, sensors, badges, decals/livery, handles and similar items) when they may require removal, transfer, inspection or replacement to complete the repair.`,
     },
     ...input.photos.map((photo) => ({ type: "input_image" as const, image_url: photo.signedUrl, detail: "high" as const })),
   ];
@@ -120,11 +120,15 @@ export async function analyzeVehicleIntake(input: {
       "Registration, VIN, odometer and paint code must only be returned when legible in the evidence or explicitly supplied by the user.",
       "Make, model, variant and model year may be suggested from visible evidence, but lower confidence whenever uncertain and return null instead of guessing.",
       "Do not identify a person or infer a customer name from an image. Customer details are intentionally left empty during quick intake.",
-      "Describe only visible damage. Hidden damage is never a fact; use CHECK_AFTER_STRIP or INSPECT when appropriate.",
+      "Describe only visible damage as damage. Hidden damage is never a fact; use CHECK_AFTER_STRIP or INSPECT when appropriate.",
+      "In addition to damaged panels, notice estimate-relevant visible attachments around the impact/refinish area: lamps/reflectors, bumper grilles/garnishes, mouldings, liners, retainers if visible, parking sensors, sensor/radar hardware, wiring where visible, badges/emblems, handles, number-plate fittings and decals/company signwriting.",
+      "If an intact visible attachment may need removal/refit or transfer to perform the stated repair, it can appear in suggestedOperations as an R&R/TRANSFER/OUTWORK suggestion without falsely labelling it damaged.",
+      "When company graphics, decals or signwriting are visible on a panel likely to be refinished, include a separate OUTWORK suggestion noting removal/reinstatement or replacement TBC.",
+      "When bumper/sensor/radar equipment is involved, suggest inspection/function-check or calibration consideration only when removal/disturbance is reasonably connected to the repair; do not assert hidden electronic damage.",
       "LH and RH always mean the vehicle's perspective, not the viewer's perspective.",
       "Suggested operations are draft checklist items only. Do not supply prices, labour hours, totals, insurer approval or repair authorization.",
       "Every visible-damage finding and suggested operation must cite at least one supplied photo UUID.",
-      "Avoid duplicate operations. Prefer concise workshop-ready descriptions.",
+      "Avoid duplicate operations. Prefer concise workshop-ready descriptions with one physical operation/component per suggestion.",
       "This output requires human estimator review before it becomes part of an issued estimate.",
     ].join("\n"),
     input: [{ role: "user", content }],
