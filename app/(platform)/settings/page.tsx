@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { Building2, ChevronRight, CircleDollarSign, Settings, Sparkles, Users } from "lucide-react";
+import { Building2, ChevronRight, CircleDollarSign, CreditCard, Settings, Users } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
 
 export default async function SettingsPage() {
   const { supabase, organizationId, role } = await requireOrganizationContext();
 
-  const [organizationResult, settingsResult, rateCardResult, memberResult, branchResult] = await Promise.all([
+  const [organizationResult, settingsResult, rateCardResult, memberResult, branchResult, subscriptionResult] = await Promise.all([
     supabase.from("organizations").select("name, slug, timezone, currency, country_code, status").eq("id", organizationId).maybeSingle(),
     supabase.from("workshop_settings").select("trading_name, legal_name, gst_number, gst_rate, email, phone, city, default_currency, estimate_valid_days, estimate_terms").eq("organization_id", organizationId).maybeSingle(),
     supabase.from("rate_cards").select("id, name, is_active, is_default").eq("organization_id", organizationId).eq("is_default", true).maybeSingle(),
     supabase.from("organization_members").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("status", "active"),
     supabase.from("branches").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
+    supabase.from("organization_subscriptions").select("plan_id,status").eq("organization_id", organizationId).maybeSingle(),
   ]);
 
   const organization = organizationResult.data;
@@ -19,13 +20,16 @@ export default async function SettingsPage() {
   const canManage = ["owner", "admin", "manager"].includes(role);
   const requiredProfileFields = [settings?.trading_name || organization?.name, settings?.email, settings?.phone, settings?.city, settings?.gst_number];
   const profileComplete = requiredProfileFields.filter(Boolean).length;
+  const { data: plan } = subscriptionResult.data?.plan_id
+    ? await supabase.from("plans").select("name,monthly_price_nzd,ai_markup_percent").eq("id", subscriptionResult.data.plan_id).maybeSingle()
+    : { data: null };
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-6 sm:px-7 lg:px-9 lg:py-8">
       <header className="mb-6">
         <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-[var(--brand)]"><Settings className="size-4" /> Workspace settings</div>
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">Manage workshop identity, commercial rates, team access and AI knowledge from one place.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">Manage workshop identity, commercial rates, team access and SaaS billing from one place.</p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -61,11 +65,15 @@ export default async function SettingsPage() {
           ]}
         />
         <SettingsCard
-          href="/knowledge"
-          icon={Sparkles}
-          title="AI Knowledge"
-          description="Teach workshop-specific estimating knowledge and manage private reference documents."
-          details={["Workshop-scoped knowledge", "Human-reviewed learning", "No cross-workshop sharing"]}
+          href="/billing"
+          icon={CreditCard}
+          title="Billing & usage"
+          description="Subscription plan, AI estimate usage, customer charges and payment status."
+          details={[
+            plan?.name || "Starter",
+            `$${Number(plan?.monthly_price_nzd ?? 9.99).toFixed(2)} / month`,
+            `AI cost + ${Number(plan?.ai_markup_percent ?? 10).toFixed(0)}%`,
+          ]}
         />
         <SettingsCard
           href="/settings/workshop"
