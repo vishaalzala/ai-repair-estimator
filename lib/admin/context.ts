@@ -18,7 +18,6 @@ export async function requirePlatformAdmin() {
     .maybeSingle();
 
   if (!admin) {
-    await supabase.auth.signOut();
     redirect("/admin/login?error=This%20account%20does%20not%20have%20platform%20administrator%20access");
   }
 
