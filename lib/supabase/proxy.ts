@@ -20,6 +20,31 @@ function redirectToLogin(request: NextRequest, reason?: string) {
   return NextResponse.redirect(url);
 }
 
+function redirectAuthCodeToConfirm(request: NextRequest) {
+  const code = request.nextUrl.searchParams.get("code");
+  const pathname = request.nextUrl.pathname;
+
+  if (!code || pathname.startsWith("/auth/confirm")) return null;
+  if (pathname !== "/" && pathname !== "/login" && pathname !== "/reset-password") return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = "/auth/confirm";
+  url.search = "";
+  url.searchParams.set("code", code);
+
+  const flowId = request.nextUrl.searchParams.get("sb_flow_id");
+  if (flowId) url.searchParams.set("sb_flow_id", flowId);
+
+  const requestedNext = request.nextUrl.searchParams.get("next");
+  if (pathname === "/reset-password") {
+    url.searchParams.set("next", "/reset-password");
+  } else if (requestedNext && requestedNext !== "/") {
+    url.searchParams.set("next", requestedNext);
+  }
+
+  return NextResponse.redirect(url);
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
@@ -31,6 +56,9 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/api/health");
+
+  const authCodeRedirect = redirectAuthCodeToConfirm(request);
+  if (authCodeRedirect) return authCodeRedirect;
 
   const config = getProxySupabaseConfig();
 
