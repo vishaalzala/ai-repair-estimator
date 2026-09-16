@@ -11,8 +11,9 @@ function empty(value: unknown) {
   return value === null || value === undefined || (typeof value === "string" && value.trim() === "");
 }
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: jobId } = await params;
+  const fullPipeline = request.headers.get("x-ai-full-pipeline") === "1";
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ message: "Authentication required." }, { status: 401 });
@@ -118,7 +119,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     provider: "openai",
     model,
     status: "running",
-    input_metadata: { photo_ids: aiPhotos.map((photo) => photo.id), photo_count: aiPhotos.length, workflow: "quick_intake" },
+    input_metadata: { photo_ids: aiPhotos.map((photo) => photo.id), photo_count: aiPhotos.length, workflow: fullPipeline ? "full_estimate_pipeline" : "quick_intake" },
     created_by: auth.user.id,
   }).select("id").maybeSingle();
 
@@ -209,12 +210,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    const { data: categories } = await supabase
-      .from("estimate_categories")
-      .select("id, code")
-      .eq("organization_id", organizationId)
-      .eq("is_active", true);
-    const categoryByCode = new Map((categories ?? []).map((category) => [category.code, category.id]));
+    let operationRows: Array<Record<string, unknown>> = [];
 
     await supabase.from("estimate_items")
       .delete()
@@ -224,38 +220,47 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .like("source_ref", "quick_intake:%")
       .eq("human_verified", false);
 
-    const operationRows = result.analysis.suggestedOperations.flatMap((operation, index) => {
-      const categoryId = categoryByCode.get(operation.categoryCode);
-      if (!categoryId) return [];
-      return [{
-        organization_id: organizationId,
-        estimate_id: estimate.id,
-        category_id: categoryId,
-        component: operation.component,
-        side: operation.side,
-        description: operation.description,
-        quantity: 1,
-        labour_hours: 0,
-        labour_rate: 0,
-        fixed_amount: 0,
-        part_cost: 0,
-        markup_percent: 0,
-        freight_amount: 0,
-        adjustment_amount: 0,
-        line_total_ex_tax: 0,
-        source_type: "ai",
-        source_ref: `quick_intake:${run.id}`,
-        ai_confidence: operation.confidence,
-        human_verified: false,
-        notes: `Draft AI suggestion. Evidence: ${operation.evidencePhotoIds.join(", ")}. Confirm operation, time, parts and price before issue.`,
-        sort_order: (index + 1) * 10,
-        created_by: auth.user.id,
-      }];
-    });
+    if (!fullPipeline) {
+      const { data: categories } = await supabase
+        .from("estimate_categories")
+        .select("id, code")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true);
+      const categoryByCode = new Map((categories ?? []).map((category) => [category.code, category.id]));
 
-    if (operationRows.length) {
-      const { error: operationError } = await supabase.from("estimate_items").insert(operationRows);
-      if (operationError) throw new Error(`Unable to prepare quick-intake estimate lines: ${operationError.code}`);
+      operationRows = result.analysis.suggestedOperations.flatMap((operation, index) => {
+        const categoryId = categoryByCode.get(operation.categoryCode);
+        if (!categoryId) return [];
+        return [{
+          organization_id: organizationId,
+          estimate_id: estimate.id,
+          category_id: categoryId,
+          component: operation.component,
+          side: operation.side,
+          description: operation.description,
+          quantity: 1,
+          labour_hours: 0,
+          labour_rate: 0,
+          fixed_amount: 0,
+          part_cost: 0,
+          markup_percent: 0,
+          freight_amount: 0,
+          adjustment_amount: 0,
+          line_total_ex_tax: 0,
+          source_type: "ai",
+          source_ref: `quick_intake:${run.id}`,
+          ai_confidence: operation.confidence,
+          human_verified: false,
+          notes: `Draft AI suggestion. Evidence: ${operation.evidencePhotoIds.join(", ")}. Confirm operation, time, parts and price before issue.`,
+          sort_order: (index + 1) * 10,
+          created_by: auth.user.id,
+        }];
+      });
+
+      if (operationRows.length) {
+        const { error: operationError } = await supabase.from("estimate_items").insert(operationRows);
+        if (operationError) throw new Error(`Unable to prepare quick-intake estimate lines: ${operationError.code}`);
+      }
     }
 
     await Promise.all([
@@ -275,13 +280,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         job_id: jobId,
         actor_user_id: auth.user.id,
         event_type: "ai_quick_intake_completed",
-        title: "AI Quick Intake prepared draft estimate",
-        details: { ai_run_id: run.id, photos: aiPhotos.length, findings: findingCount, draft_operations: operationRows.length, model },
+        title: fullPipeline ? "AI Quick Intake completed for full estimate" : "AI Quick Intake prepared draft estimate",
+        details: { ai_run_id: run.id, photos: aiPhotos.length, findings: findingCount, draft_operations: operationRows.length, model, full_pipeline: fullPipeline },
       }),
     ]);
 
     return NextResponse.json({
-      message: `AI Quick Intake complete: ${findingCount} visible finding${findingCount === 1 ? "" : "s"} and ${operationRows.length} draft estimate line${operationRows.length === 1 ? "" : "s"} prepared for review.`,
+      message: fullPipeline
+        ? `AI photo analysis complete with ${findingCount} visible finding${findingCount === 1 ? "" : "s"}. Preparing the full estimate next.`
+        : `AI Quick Intake complete: ${findingCount} visible finding${findingCount === 1 ? "" : "s"} and ${operationRows.length} draft estimate line${operationRows.length === 1 ? "" : "s"} prepared for review.`,
       jobId,
       estimateId: estimate.id,
       findings: findingCount,
