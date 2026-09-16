@@ -75,6 +75,22 @@ export async function requestPasswordReset(formData: FormData) {
   });
 
   if (error) {
+    const status = "status" in error ? error.status : undefined;
+    const message = error.message.toLowerCase();
+    const isRateLimited =
+      status === 429 ||
+      message.includes("rate limit") ||
+      message.includes("too many") ||
+      message.includes("email send");
+
+    if (isRateLimited) {
+      redirect(
+        `/forgot-password?error=${encode(
+          "Too many reset emails have been requested. Please wait at least a minute before trying again. If several auth emails were sent recently, the project email quota can take up to an hour to reset.",
+        )}`,
+      );
+    }
+
     redirect(`/forgot-password?error=${encode("Unable to send a reset link right now. Please wait a moment and try again.")}`);
   }
 
