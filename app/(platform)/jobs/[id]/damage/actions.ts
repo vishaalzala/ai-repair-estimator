@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { analyzeVehicleDamage } from "@/lib/ai/tasks/damage-analysis";
+import { generateAndPersistAiEstimate } from "@/lib/estimating/ai-estimate";
 
 const supportedAiImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -106,6 +107,15 @@ export async function runDamageAnalysis(jobId: string) {
       if (evidenceError) throw new Error(`Unable to save damage evidence: ${evidenceError.code}`);
     }
 
+    let generatedEstimate: { itemCount: number } | null = null;
+    let estimateGenerationError: string | null = null;
+    try {
+      generatedEstimate = await generateAndPersistAiEstimate(jobId, result.analysis);
+    } catch (estimateError) {
+      estimateGenerationError = estimateError instanceof Error ? estimateError.message : "unknown_error";
+      console.error("AI full estimate generation failed", estimateGenerationError);
+    }
+
     await Promise.all([
       supabase.from("ai_analysis_runs").update({
         status: "completed",
@@ -117,20 +127,33 @@ export async function runDamageAnalysis(jobId: string) {
         latency_ms: Date.now() - started,
         completed_at: new Date().toISOString(),
       }).eq("organization_id", organizationId).eq("id", run.id),
-      supabase.from("jobs").update({ status: "damage_review" }).eq("organization_id", organizationId).eq("id", jobId),
+      supabase.from("jobs").update({ status: "estimating" }).eq("organization_id", organizationId).eq("id", jobId),
       supabase.from("activity_events").insert({
         organization_id: organizationId,
         job_id: jobId,
         actor_user_id: userId,
         event_type: "ai_damage_analysis_completed",
-        title: "AI damage analysis completed",
-        details: { ai_run_id: run.id, findings: findingRows.length, photo_count: aiPhotos.length, model },
+        title: generatedEstimate ? "AI damage analysis and full estimate completed" : "AI damage analysis completed",
+        details: {
+          ai_run_id: run.id,
+          findings: findingRows.length,
+          photo_count: aiPhotos.length,
+          model,
+          estimate_items: generatedEstimate?.itemCount ?? 0,
+          estimate_generation_error: estimateGenerationError,
+        },
       }),
     ]);
 
     revalidatePath(`/jobs/${jobId}/damage`);
+    revalidatePath(`/jobs/${jobId}/estimate`);
     revalidatePath(`/jobs/${jobId}`);
-    redirect(`/jobs/${jobId}/damage?message=AI%20damage%20analysis%20completed.%20Review%20every%20finding%20before%20using%20it`);
+
+    if (generatedEstimate) {
+      redirect(`/jobs/${jobId}/estimate?message=AI%20analysed%20the%20photos%20and%20created%20${generatedEstimate.itemCount}%20preliminary%20estimate%20lines.%20Review%20and%20edit%20every%20line%20before%20approval`);
+    }
+
+    redirect(`/jobs/${jobId}/damage?message=AI%20damage%20analysis%20completed,%20but%20the%20full%20estimate%20could%20not%20be%20generated.%20Check%20the%20AI%20estimate%20configuration%20and%20try%20again`);
   } catch (error) {
     console.error("OpenAI damage analysis failed", error instanceof Error ? error.message : "unknown");
     await supabase.from("ai_analysis_runs").update({
