@@ -59,6 +59,8 @@ export async function runDamageAnalysis(jobId: string) {
   if (runError || !run) redirect(`/jobs/${jobId}/damage?error=Unable%20to%20start%20the%20AI%20analysis%20record`);
 
   const started = Date.now();
+  let destination = `/jobs/${jobId}/damage?message=AI%20damage%20analysis%20completed,%20but%20the%20full%20estimate%20could%20not%20be%20generated.%20Check%20the%20AI%20estimate%20configuration%20and%20try%20again`;
+
   try {
     const vehicle = vehicleResult.data;
     const result = await analyzeVehicleDamage({
@@ -150,10 +152,8 @@ export async function runDamageAnalysis(jobId: string) {
     revalidatePath(`/jobs/${jobId}`);
 
     if (generatedEstimate) {
-      redirect(`/jobs/${jobId}/estimate?message=AI%20analysed%20the%20photos%20and%20created%20${generatedEstimate.itemCount}%20preliminary%20estimate%20lines.%20Review%20and%20edit%20every%20line%20before%20approval`);
+      destination = `/jobs/${jobId}/estimate?message=AI%20analysed%20the%20photos%20and%20created%20${generatedEstimate.itemCount}%20preliminary%20estimate%20lines.%20Review%20and%20edit%20every%20line%20before%20approval`;
     }
-
-    redirect(`/jobs/${jobId}/damage?message=AI%20damage%20analysis%20completed,%20but%20the%20full%20estimate%20could%20not%20be%20generated.%20Check%20the%20AI%20estimate%20configuration%20and%20try%20again`);
   } catch (error) {
     console.error("OpenAI damage analysis failed", error instanceof Error ? error.message : "unknown");
     await supabase.from("ai_analysis_runs").update({
@@ -164,6 +164,8 @@ export async function runDamageAnalysis(jobId: string) {
     }).eq("organization_id", organizationId).eq("id", run.id);
     redirect(`/jobs/${jobId}/damage?error=AI%20analysis%20failed.%20The%20photos%20and%20estimate%20were%20not%20changed`);
   }
+
+  redirect(destination);
 }
 
 export async function reviewDamageFinding(jobId: string, formData: FormData) {
