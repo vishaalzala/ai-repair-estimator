@@ -1,24 +1,45 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+const CANONICAL_AUTH_ORIGIN = "https://ai-repair-estimator.vercel.app";
+const LEGACY_AUTH_HOST = "ai-repair-estimator-workshoppro.vercel.app";
+export const PASSWORD_RECOVERY_COOKIE = "repairquote_password_recovery";
+
 function encode(value: string) {
   return encodeURIComponent(value);
+}
+
+function normalizeAppUrl(value: string | null) {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.hostname.toLowerCase() === LEGACY_AUTH_HOST) {
+      return CANONICAL_AUTH_ORIGIN;
+    }
+    return url.origin.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
 }
 
 async function getAppUrl() {
   const headerStore = await headers();
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
   const protocol = headerStore.get("x-forwarded-proto") ?? "https";
-  if (host) return `${protocol}://${host}`.replace(/\/$/, "");
 
-  const origin = headerStore.get("origin");
-  if (origin) return origin.replace(/\/$/, "");
+  if (host) {
+    const requestUrl = normalizeAppUrl(`${protocol}://${host}`);
+    if (requestUrl) return requestUrl;
+  }
 
-  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  return configuredUrl ?? null;
+  const origin = normalizeAppUrl(headerStore.get("origin"));
+  if (origin) return origin;
+
+  return normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL ?? null);
 }
 
 export async function signIn(formData: FormData) {
@@ -56,6 +77,15 @@ export async function requestPasswordReset(formData: FormData) {
     redirect(`/forgot-password?error=${encode("Unable to send a reset link right now. Please wait a moment and try again.")}`);
   }
 
+  const cookieStore = await cookies();
+  cookieStore.set(PASSWORD_RECOVERY_COOKIE, "1", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 2 * 60 * 60,
+  });
+
   redirect(`/forgot-password?message=${encode("If an account exists for that email, a password reset link has been sent. Please check your inbox and spam folder.")}`);
 }
 
@@ -84,6 +114,8 @@ export async function updatePassword(formData: FormData) {
     redirect(`/reset-password?error=${encode("Unable to update your password. Please request a new reset link and try again.")}`);
   }
 
+  const cookieStore = await cookies();
+  cookieStore.delete(PASSWORD_RECOVERY_COOKIE);
   await supabase.auth.signOut();
   redirect(`/login?message=${encode("Password updated successfully. Sign in with your new password.")}`);
 }
