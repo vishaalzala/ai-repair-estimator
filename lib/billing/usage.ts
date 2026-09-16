@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createUsageInvoiceItem, stripeConfigured, updateUsageInvoiceItem } from "@/lib/billing/stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type ModelPrice = {
   provider: string;
@@ -33,28 +34,29 @@ export async function meterJobAiUsage(input: {
   estimateId: string;
 }) {
   const { supabase, organizationId, jobId, estimateId } = input;
+  const billingClient = process.env.SUPABASE_SECRET_KEY ? createAdminClient() : supabase;
 
   const [runsResult, pricesResult, subscriptionResult, settingsResult, jobResult] = await Promise.all([
-    supabase
+    billingClient
       .from("ai_analysis_runs")
       .select("id,provider,model,status,input_tokens,cached_input_tokens,output_tokens,created_at")
       .eq("organization_id", organizationId)
       .eq("job_id", jobId)
       .eq("status", "completed")
       .order("created_at", { ascending: true }),
-    supabase
+    billingClient
       .from("ai_model_prices")
       .select("provider,model,input_usd_per_million,cached_input_usd_per_million,output_usd_per_million,effective_from,effective_to,active"),
-    supabase
+    billingClient
       .from("organization_subscriptions")
       .select("plan_id,status,stripe_customer_id,stripe_subscription_id")
       .eq("organization_id", organizationId)
       .maybeSingle(),
-    supabase
+    billingClient
       .from("platform_settings")
       .select("key,value")
       .in("key", ["usd_to_nzd_rate", "ai_markup_percent"]),
-    supabase.from("jobs").select("job_number").eq("organization_id", organizationId).eq("id", jobId).maybeSingle(),
+    billingClient.from("jobs").select("job_number").eq("organization_id", organizationId).eq("id", jobId).maybeSingle(),
   ]);
 
   const runs = runsResult.data ?? [];
@@ -65,7 +67,7 @@ export async function meterJobAiUsage(input: {
 
   const subscription = subscriptionResult.data;
   const { data: plan } = subscription?.plan_id
-    ? await supabase
+    ? await billingClient
       .from("plans")
       .select("ai_markup_percent,minimum_estimate_charge_nzd")
       .eq("id", subscription.plan_id)
@@ -92,8 +94,8 @@ export async function meterJobAiUsage(input: {
     const customerChargeNzd = providerCostNzd + markupAmountNzd;
 
     await Promise.all([
-      supabase.from("ai_analysis_runs").update({ estimated_cost_usd: providerCostUsd }).eq("id", run.id),
-      supabase.from("ai_usage_ledger").upsert({
+      billingClient.from("ai_analysis_runs").update({ estimated_cost_usd: providerCostUsd }).eq("id", run.id),
+      billingClient.from("ai_usage_ledger").upsert({
         organization_id: organizationId,
         job_id: jobId,
         estimate_id: estimateId,
@@ -113,7 +115,7 @@ export async function meterJobAiUsage(input: {
     ]);
   }
 
-  const { data: ledgerRows } = await supabase
+  const { data: ledgerRows } = await billingClient
     .from("ai_usage_ledger")
     .select("provider_cost_usd,provider_cost_nzd,customer_charge_nzd")
     .eq("organization_id", organizationId)
@@ -125,7 +127,7 @@ export async function meterJobAiUsage(input: {
   const customerChargeNzd = Math.max(rawCustomerChargeNzd, minimumEstimateCharge);
   const markupAmountNzd = Math.max(0, customerChargeNzd - providerCostNzd);
 
-  const { data: existingCharge } = await supabase
+  const { data: existingCharge } = await billingClient
     .from("estimate_ai_charges")
     .select("id,status,stripe_invoice_item_id")
     .eq("organization_id", organizationId)
@@ -135,9 +137,10 @@ export async function meterJobAiUsage(input: {
   let stripeInvoiceItemId = existingCharge?.stripe_invoice_item_id ?? null;
   let billingStatus = existingCharge?.status ?? "unbilled";
   const description = `AI Estimate Usage — ${jobResult.data?.job_number ?? jobId.slice(0, 8)}`;
+  const stripeBillingReady = stripeConfigured() && Boolean(process.env.SUPABASE_SECRET_KEY);
 
   if (
-    stripeConfigured() &&
+    stripeBillingReady &&
     subscription?.stripe_customer_id &&
     ["active", "trialing"].includes(subscription.status) &&
     billingStatus !== "billed" &&
@@ -165,7 +168,7 @@ export async function meterJobAiUsage(input: {
     }
   }
 
-  await supabase.from("estimate_ai_charges").upsert({
+  await billingClient.from("estimate_ai_charges").upsert({
     organization_id: organizationId,
     job_id: jobId,
     estimate_id: estimateId,
@@ -181,7 +184,7 @@ export async function meterJobAiUsage(input: {
   }, { onConflict: "job_id" });
 
   if (billingStatus === "pending_invoice") {
-    await supabase
+    await billingClient
       .from("ai_usage_ledger")
       .update({ billing_status: "pending_invoice", stripe_invoice_item_id: stripeInvoiceItemId })
       .eq("organization_id", organizationId)
