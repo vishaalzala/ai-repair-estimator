@@ -87,17 +87,16 @@ export async function generateRepairEstimateDraft(input: {
   damageContext: string;
   workshopContext: string;
   knowledgeContext: string;
-  photos: EstimatePhotoInput[];
+  photos?: EstimatePhotoInput[];
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
   if (!input.model) throw new Error("AI_ESTIMATE_MODEL is not configured");
-  if (!input.photos.length) throw new Error("At least one evidence photo is required");
 
-  const client = new OpenAI({ apiKey });
-  const photoLegend = input.photos
-    .map((photo, index) => `Photo ${index + 1}: id=${photo.id}; category=${photo.category}; file=${photo.fileName}`)
-    .join("\n");
+  const photos = input.photos ?? [];
+  const photoLegend = photos.length
+    ? photos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; category=${photo.category}; file=${photo.fileName}`).join("\n")
+    : "The visible-damage findings below were produced by the immediately preceding vision analysis of the job photos.";
 
   const content: Array<
     | { type: "input_text"; text: string }
@@ -110,18 +109,18 @@ export async function generateRepairEstimateDraft(input: {
         input.vehicleContext,
         "\nJOB / CLAIM NOTES",
         input.claimContext,
-        "\nPREVIOUS DAMAGE FINDINGS",
+        "\nVISIBLE-DAMAGE FINDINGS FROM PHOTO ANALYSIS",
         input.damageContext || "No previous damage findings recorded.",
         "\nWORKSHOP ESTIMATING CONFIGURATION",
         input.workshopContext,
         "\nWORKSHOP / USER KNOWLEDGE",
         input.knowledgeContext || "No extra knowledge supplied.",
-        "\nPHOTO LEGEND",
+        "\nPHOTO CONTEXT",
         photoLegend,
-        "\nCreate a complete preliminary repair estimate from the photos and notes. The application will apply configured prices deterministically after your operation list is returned.",
+        "\nCreate a complete preliminary repair estimate from this evidence and the estimator note. The application will apply configured prices deterministically after your operation list is returned.",
       ].join("\n"),
     },
-    ...input.photos.map((photo) => ({
+    ...photos.map((photo) => ({
       type: "input_image" as const,
       image_url: photo.signedUrl,
       detail: "high" as const,
@@ -131,8 +130,9 @@ export async function generateRepairEstimateDraft(input: {
   const response = await client.responses.parse({
     model: input.model,
     instructions: [
-      "You are a senior New Zealand collision-repair estimator preparing a PRELIMINARY workshop estimate from vehicle photographs and estimator notes.",
+      "You are a senior New Zealand collision-repair estimator preparing a PRELIMINARY workshop estimate from vehicle photo evidence and estimator notes.",
       "Return a comprehensive operation list, not merely a damage description. Include legitimate remove/refit, repair, paint, blend, parts, mechanical/electrical/diagnostic/ADAS/SRS, outwork and materials operations when supported or necessary for the stated repair.",
+      "The supplied visible-damage findings are trusted as the output of the immediately preceding vision pass, but they are still preliminary and must remain reviewable by a human estimator.",
       "Use category code rr for Remove & Refit, repair for panel/plastic repair, paint for refinishing, and parts for replacement parts. Use blend for a blend operation; the application will display it in the Paint section.",
       "For a repaired painted component, normally include both the repair operation and its paint/refinish operation. Include necessary remove/refit operations required to carry out that repair when reasonably supported by normal estimating practice.",
       "Workshop rule: when a front bumper is being refinished, consider both adjoining front guards for blend. Include blend operations when appropriate for the workshop estimate; mark them BLEND.",
@@ -145,7 +145,8 @@ export async function generateRepairEstimateDraft(input: {
       "For materials or outwork without a configured deterministic amount, use pricingStatus manual_tbc rather than inventing a charge.",
       "Set reportSelected true for operations that should appear on the repair report. Set blendSelected true only for blend operations.",
       "LH and RH always mean the vehicle's perspective, never the viewer's perspective.",
-      "Vehicle identification may be populated only from visible badges/registration/evidence. Do not guess VIN or a model year that cannot be supported. Use null for uncertain fields and lower confidence.",
+      "Do not duplicate any existing manual or human-verified estimate line described in the workshop context.",
+      "Vehicle identification may be populated only from the supplied vehicle/photo-analysis context. Use null for uncertain fields and do not guess VIN, model year, customer or owner information.",
       "The human estimator must be able to review and edit every generated line before the estimate is issued.",
     ].join("\n"),
     input: [{ role: "user", content }],
