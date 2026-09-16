@@ -6,6 +6,17 @@ export const DamageAnalysisSchema = z.object({
   impactArea: z.string().min(1),
   severity: z.enum(["minor", "moderate", "major", "unknown"]),
   summary: z.string().min(1),
+  vehicleIdentification: z.object({
+    registration: z.string().nullable(),
+    make: z.string().nullable(),
+    model: z.string().nullable(),
+    variant: z.string().nullable(),
+    modelYear: z.number().int().min(1900).max(2100).nullable(),
+    bodyType: z.string().nullable(),
+    colour: z.string().nullable(),
+    confidence: z.number().min(0).max(1),
+    evidenceNote: z.string().nullable(),
+  }),
   findings: z.array(z.object({
     component: z.string().min(1),
     side: z.enum(["LH", "RH", "FRONT", "REAR", "CENTRE", "NA"]).nullable(),
@@ -62,7 +73,7 @@ export async function analyzeVehicleDamage(input: {
     `EV: ${input.vehicle.isEv ? "yes" : "no/unknown"}`,
     `Hybrid: ${input.vehicle.isHybrid ? "yes" : "no/unknown"}`,
     `ADAS present: ${input.vehicle.adasPresent === true ? "yes" : input.vehicle.adasPresent === false ? "no" : "not confirmed"}`,
-    `Reported accident: ${input.vehicle.accidentDescription ?? "not provided"}`,
+    `Reported accident / estimator note: ${input.vehicle.accidentDescription ?? "not provided"}`,
   ].join("\n");
 
   const photoLegend = input.photos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; category=${photo.category}; file=${photo.fileName}`).join("\n");
@@ -72,7 +83,7 @@ export async function analyzeVehicleDamage(input: {
   > = [
     {
       type: "input_text",
-      text: `${vehicleText}\n\nPHOTO LEGEND\n${photoLegend}\n\nAnalyse only visible evidence in the supplied vehicle photos.`,
+      text: `${vehicleText}\n\nPHOTO LEGEND\n${photoLegend}\n\nAnalyse the visible vehicle identity and visible damage in the supplied photos. Treat the reported accident / estimator note as important repair context, but keep unsupported hidden damage as an inspection recommendation.`,
     },
     ...input.photos.map((photo) => ({ type: "input_image" as const, image_url: photo.signedUrl, detail: "high" as const })),
   ];
@@ -82,11 +93,14 @@ export async function analyzeVehicleDamage(input: {
     instructions: [
       "You are assisting a professional automotive repair estimator with preliminary visible-damage review.",
       "Describe only damage that is visibly supported by the supplied photos and provided vehicle context.",
-      "Never invent hidden damage, parts prices, labour times, repair totals or insurer requirements.",
+      "The estimator's written accident/repair note is valid context and should guide which visible area needs assessment.",
+      "Never invent hidden damage, parts prices, repair totals or insurer requirements.",
       "When hidden damage is plausible but not visible, use CHECK_AFTER_STRIP or INSPECT and state that it is not confirmed.",
       "LH and RH always mean the vehicle's perspective, not the viewer's perspective.",
       "Use the exact supplied photo UUIDs in evidencePhotoIds. Every finding must cite at least one supporting photo.",
       "If image evidence is insufficient, lower confidence and recommend inspection rather than asserting damage.",
+      "For vehicle identification, read visible registration plates and badges where possible. Populate make/model/variant/body type/colour only when supported by the photos or supplied context.",
+      "Do not guess VIN or model year. If a model year is not reliably supported, return null. Do not infer customer or owner information.",
       "This output is a draft for human estimator review and must not be treated as repair authorization.",
     ].join("\n"),
     input: [{ role: "user", content }],
