@@ -9,16 +9,16 @@ function encode(value: string) {
 }
 
 async function getAppUrl() {
-  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (configuredUrl) return configuredUrl;
-
   const headerStore = await headers();
+  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
+  const protocol = headerStore.get("x-forwarded-proto") ?? "https";
+  if (host) return `${protocol}://${host}`.replace(/\/$/, "");
+
   const origin = headerStore.get("origin");
   if (origin) return origin.replace(/\/$/, "");
 
-  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
-  const protocol = headerStore.get("x-forwarded-proto") ?? "https";
-  return host ? `${protocol}://${host}` : null;
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  return configuredUrl ?? null;
 }
 
 export async function signIn(formData: FormData) {
