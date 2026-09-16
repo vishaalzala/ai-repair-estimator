@@ -94,3 +94,18 @@ export async function syncAutomaticParkingFee(jobId: string) {
     await supabase.from("estimate_items").insert(payload);
   }
 }
+
+export async function syncAutomaticParkingFeesForOpenEstimates() {
+  const { supabase, organizationId } = await requireOrganizationContext();
+  const { data: estimates } = await supabase
+    .from("estimates")
+    .select("job_id")
+    .eq("organization_id", organizationId)
+    .eq("estimate_type", "primary")
+    .in("status", ["draft", "ready_for_approval"]);
+
+  const jobIds = [...new Set((estimates ?? []).map((estimate) => estimate.job_id))];
+  for (const jobId of jobIds) {
+    await syncAutomaticParkingFee(jobId);
+  }
+}
