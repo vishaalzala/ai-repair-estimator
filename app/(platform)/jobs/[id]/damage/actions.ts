@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { analyzeVehicleDamage } from "@/lib/ai/tasks/damage-analysis";
 import { generateAndPersistAiEstimate } from "@/lib/estimating/ai-estimate";
+import { meterJobAiUsage } from "@/lib/billing/usage";
 
 const supportedAiImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -109,7 +110,7 @@ export async function runDamageAnalysis(jobId: string) {
       if (evidenceError) throw new Error(`Unable to save damage evidence: ${evidenceError.code}`);
     }
 
-    let generatedEstimate: { itemCount: number } | null = null;
+    let generatedEstimate: { itemCount: number; estimateId: string } | null = null;
     let estimateGenerationError: string | null = null;
     try {
       generatedEstimate = await generateAndPersistAiEstimate(jobId, result.analysis);
@@ -146,6 +147,14 @@ export async function runDamageAnalysis(jobId: string) {
         },
       }),
     ]);
+
+    if (generatedEstimate) {
+      try {
+        await meterJobAiUsage({ supabase, organizationId, jobId, estimateId: generatedEstimate.estimateId });
+      } catch (meteringError) {
+        console.error("AI usage metering failed", meteringError instanceof Error ? meteringError.message : "unknown error");
+      }
+    }
 
     revalidatePath(`/jobs/${jobId}/damage`);
     revalidatePath(`/jobs/${jobId}/estimate`);
