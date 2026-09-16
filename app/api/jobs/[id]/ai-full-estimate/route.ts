@@ -4,6 +4,7 @@ import { VehicleIntakeSchema } from "@/lib/ai/tasks/vehicle-intake";
 import type { DamageAnalysis } from "@/lib/ai/tasks/damage-analysis";
 import { generateAndPersistAiEstimate } from "@/lib/estimating/ai-estimate";
 import { syncAutomaticParkingFee } from "@/lib/estimating/parking-fees";
+import { meterJobAiUsage } from "@/lib/billing/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -90,12 +91,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     const estimate = await generateAndPersistAiEstimate(jobId, damageAnalysis);
     await syncAutomaticParkingFee(jobId);
+    const metering = await meterJobAiUsage({
+      supabase,
+      organizationId,
+      jobId,
+      estimateId: estimate.estimateId,
+    });
 
     return NextResponse.json({
       message: `Full AI estimate created with ${estimate.itemCount} priced/reviewable line${estimate.itemCount === 1 ? "" : "s"}.`,
       itemCount: estimate.itemCount,
       estimateId: estimate.estimateId,
       summary: estimate.summary,
+      aiUsageChargeNzd: metering?.customerChargeNzd ?? null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to generate the full AI estimate";

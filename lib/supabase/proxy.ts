@@ -34,9 +34,10 @@ function redirectLegacyAliasToCanonical(request: NextRequest) {
 
 function redirectToLogin(request: NextRequest, reason?: string) {
   const url = request.nextUrl.clone();
-  url.pathname = "/login";
+  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
+  url.pathname = isAdminRoute ? "/admin/login" : "/login";
   if (reason) url.searchParams.set("setup", reason);
-  else url.searchParams.set("next", request.nextUrl.pathname);
+  else if (!isAdminRoute) url.searchParams.set("next", request.nextUrl.pathname);
   return NextResponse.redirect(url);
 }
 
@@ -100,9 +101,11 @@ export async function updateSession(request: NextRequest) {
     pathname === "/signup" ||
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
+    pathname === "/admin/login" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/api/health");
+    pathname.startsWith("/api/health") ||
+    pathname.startsWith("/api/stripe/webhook");
 
   const expiredRecoveryRedirect = redirectExpiredRecoveryLink(request);
   if (expiredRecoveryRedirect) return expiredRecoveryRedirect;

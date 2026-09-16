@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenText, Boxes, CalendarDays, CarFront, CircleGauge, FileText, LogOut, Settings, Sparkles, Users } from "lucide-react";
+import { Boxes, CalendarDays, CarFront, CircleGauge, CreditCard, FileText, LogOut, Settings, Users } from "lucide-react";
 import { signOut } from "@/lib/auth/actions";
 
 const nav = [
@@ -8,8 +8,8 @@ const nav = [
   { href: "/daily-jobs", label: "Daily Jobs", icon: CalendarDays },
   { href: "/parts", label: "Parts", icon: Boxes },
   { href: "/customers", label: "Customers", icon: Users },
-  { href: "/knowledge", label: "AI Knowledge", icon: Sparkles },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -44,8 +44,8 @@ export function AppShell({
 
         <div className="mt-auto space-y-3">
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--brand)]"><BookOpenText className="size-4" />AI learning status</div>
-            <p className="text-xs leading-5 text-[var(--muted)]">Global, workshop and personal knowledge are isolated by scope and reviewed before use.</p>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--brand)]"><CreditCard className="size-4" />SaaS plan</div>
+            <p className="text-xs leading-5 text-[var(--muted)]">Subscription and AI estimate usage are available under Billing. Global AI training is controlled by platform administration.</p>
           </div>
           <form action={signOut}>
             <button type="submit" className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-white"><LogOut className="size-4" /> Sign out</button>
