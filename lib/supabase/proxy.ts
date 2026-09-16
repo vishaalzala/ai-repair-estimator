@@ -1,5 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  CANONICAL_AUTH_HOST,
+  LEGACY_AUTH_HOST,
+  PASSWORD_RECOVERY_COOKIE,
+} from "@/lib/auth/constants";
 
 function getProxySupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -12,11 +17,49 @@ function getProxySupabaseConfig() {
   return url && key ? { url, key } : null;
 }
 
+function requestHostname(request: NextRequest) {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "";
+  return host.split(":")[0].toLowerCase();
+}
+
+function redirectLegacyAliasToCanonical(request: NextRequest) {
+  if (requestHostname(request) !== LEGACY_AUTH_HOST) return null;
+
+  const url = request.nextUrl.clone();
+  url.protocol = "https:";
+  url.hostname = CANONICAL_AUTH_HOST;
+  url.port = "";
+  return NextResponse.redirect(url, 307);
+}
+
 function redirectToLogin(request: NextRequest, reason?: string) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   if (reason) url.searchParams.set("setup", reason);
   else url.searchParams.set("next", request.nextUrl.pathname);
+  return NextResponse.redirect(url);
+}
+
+function redirectExpiredRecoveryLink(request: NextRequest) {
+  const isRecoveryPending = request.cookies.get(PASSWORD_RECOVERY_COOKIE)?.value === "1";
+  if (!isRecoveryPending) return null;
+
+  const errorCode = request.nextUrl.searchParams.get("error_code");
+  const errorDescription = request.nextUrl.searchParams.get("error_description")?.toLowerCase() ?? "";
+  const expired =
+    errorCode === "otp_expired" ||
+    errorDescription.includes("expired") ||
+    errorDescription.includes("invalid");
+
+  if (!expired) return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = "/forgot-password";
+  url.search = "";
+  url.searchParams.set(
+    "error",
+    "That password reset link is invalid or has expired. Please request a new reset link.",
+  );
   return NextResponse.redirect(url);
 }
 
@@ -36,7 +79,8 @@ function redirectAuthCodeToConfirm(request: NextRequest) {
   if (flowId) url.searchParams.set("sb_flow_id", flowId);
 
   const requestedNext = request.nextUrl.searchParams.get("next");
-  if (pathname === "/reset-password") {
+  const isRecoveryPending = request.cookies.get(PASSWORD_RECOVERY_COOKIE)?.value === "1";
+  if (pathname === "/reset-password" || requestedNext === "/reset-password" || isRecoveryPending) {
     url.searchParams.set("next", "/reset-password");
   } else if (requestedNext && requestedNext !== "/") {
     url.searchParams.set("next", requestedNext);
@@ -46,6 +90,9 @@ function redirectAuthCodeToConfirm(request: NextRequest) {
 }
 
 export async function updateSession(request: NextRequest) {
+  const canonicalRedirect = redirectLegacyAliasToCanonical(request);
+  if (canonicalRedirect) return canonicalRedirect;
+
   let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
@@ -56,6 +103,9 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/api/health");
+
+  const expiredRecoveryRedirect = redirectExpiredRecoveryLink(request);
+  if (expiredRecoveryRedirect) return expiredRecoveryRedirect;
 
   const authCodeRedirect = redirectAuthCodeToConfirm(request);
   if (authCodeRedirect) return authCodeRedirect;
