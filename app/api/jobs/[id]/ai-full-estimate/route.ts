@@ -62,6 +62,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       ? confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length
       : 0;
 
+    const intakeOperationContext = intake.suggestedOperations.map((operation) =>
+      `Photo-intake operation to consider: ${operation.categoryCode} | ${[operation.side, operation.component].filter(Boolean).join(" ") || "general"} | ${operation.description} | confidence ${operation.confidence}`,
+    );
+
     const damageAnalysis: DamageAnalysis = {
       impactArea: "AI Quick Intake visible-damage assessment",
       severity: "unknown",
@@ -86,7 +90,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         evidencePhotoIds: finding.evidencePhotoIds,
         inspectionNote: null,
       })),
-      inspectionSuggestions: intake.warnings,
+      inspectionSuggestions: [...intake.warnings, ...intakeOperationContext].slice(0, 30),
     };
 
     const estimate = await generateAndPersistAiEstimate(jobId, damageAnalysis);
