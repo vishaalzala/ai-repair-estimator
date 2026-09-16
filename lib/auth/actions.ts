@@ -3,10 +3,11 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-
-const CANONICAL_AUTH_ORIGIN = "https://ai-repair-estimator.vercel.app";
-const LEGACY_AUTH_HOST = "ai-repair-estimator-workshoppro.vercel.app";
-export const PASSWORD_RECOVERY_COOKIE = "repairquote_password_recovery";
+import {
+  CANONICAL_AUTH_ORIGIN,
+  LEGACY_AUTH_HOST,
+  PASSWORD_RECOVERY_COOKIE,
+} from "@/lib/auth/constants";
 
 function encode(value: string) {
   return encodeURIComponent(value);
