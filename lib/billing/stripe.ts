@@ -68,3 +68,16 @@ export async function createUsageInvoiceItem(input: {
   });
   return item.id ? String(item.id) : null;
 }
+
+export async function updateUsageInvoiceItem(input: {
+  invoiceItemId: string;
+  amountNzd: number;
+  description: string;
+}) {
+  const cents = Math.max(0, Math.round(input.amountNzd * 100));
+  const item = await stripePost(`invoiceitems/${encodeURIComponent(input.invoiceItemId)}`, {
+    amount: cents,
+    description: input.description,
+  });
+  return item.id ? String(item.id) : input.invoiceItemId;
+}
