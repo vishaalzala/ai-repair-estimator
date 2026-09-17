@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractAndEmbedKnowledgeDocument } from "@/lib/ai/tasks/document-ingestion";
-import { embeddingModel: embeddingModelName, modelFor } from "@/lib/ai/model-policy";
+import { embeddingModel, modelFor } from "@/lib/ai/model-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       fileName: document.file_name,
       mimeType: document.mime_type,
       extractionModel,
-      embeddingModel,
+      embeddingModel: embeddingModelName,
     });
 
     await supabase.from("knowledge_chunks").delete().eq("source_id", document.source_id);
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       section_title: chunk.sectionTitle,
       content: chunk.content,
       embedding: `[${chunk.embedding.join(",")}]`,
-      embedding_model: embeddingModel,
+      embedding_model: embeddingModelName,
     }));
 
     for (let index = 0; index < rows.length; index += 100) {
