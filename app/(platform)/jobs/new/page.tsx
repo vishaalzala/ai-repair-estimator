@@ -2,6 +2,7 @@ import { ArrowLeft, Camera, CarFront, FileText, Shield, Sparkles, UserRound } fr
 import Link from "next/link";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { QuickIntake } from "@/components/jobs/quick-intake";
+import { INSURANCE_CUSTOMERS } from "@/lib/insurance/insurers";
 import { createJob } from "../actions";
 
 const steps = [
@@ -25,7 +26,7 @@ export default async function NewJobPage({
   return (
     <div className="mx-auto max-w-6xl px-5 py-6 text-slate-950 sm:px-7 lg:px-9 lg:py-8">
       <Link href="/jobs" className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"><ArrowLeft className="size-4" /> Back to jobs</Link>
-      <div className="mb-7"><h1 className="text-3xl font-bold tracking-tight text-slate-950">New assessment</h1><p className="mt-2 text-sm leading-6 text-slate-600">Start from photos with AI Quick Intake, or enter the assessment manually. Customer details can be added later.</p></div>
+      <div className="mb-7"><h1 className="text-3xl font-bold tracking-tight text-slate-950">New assessment</h1><p className="mt-2 text-sm leading-6 text-slate-600">Start from photos with AI Quick Intake, or enter the assessment manually. Select the insurer or Private Job so the estimate can use the correct job context.</p></div>
 
       {error ? <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div> : null}
 
@@ -68,9 +69,9 @@ export default async function NewJobPage({
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><Shield className="size-4" /></span><div><h2 className="font-semibold text-slate-950">Insurance & repair context</h2><p className="mt-0.5 text-xs leading-5 text-slate-600">Claim information can be completed later if it is not available yet.</p></div></div>
+          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><Shield className="size-4" /></span><div><h2 className="font-semibold text-slate-950">Insurance & repair context</h2><p className="mt-0.5 text-xs leading-5 text-slate-600">Select the insurer or Private Job first. Claim information can be completed later.</p></div></div>
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            <label className={labelClass}><span className={labelTextClass}>Insurer</span><input name="insurer_name" className={inputClass} /></label>
+            <label className={labelClass}><span className={labelTextClass}>Insurer / job type</span><select name="insurer_name" className={inputClass} defaultValue="" required><option value="" disabled>Select insurer or Private Job</option>{INSURANCE_CUSTOMERS.map((insurer) => <option key={insurer} value={insurer}>{insurer}</option>)}</select></label>
             <label className={labelClass}><span className={labelTextClass}>Claim number</span><input name="claim_number" className={inputClass} /></label>
             <label className={labelClass}><span className={labelTextClass}>Policy number</span><input name="policy_number" className={inputClass} /></label>
             <label className={labelClass}><span className={labelTextClass}>Assessor</span><input name="assessor_name" className={inputClass} /></label>
@@ -81,7 +82,7 @@ export default async function NewJobPage({
             <label className={labelClass}><span className={labelTextClass}>Accident location</span><input name="accident_location" className={inputClass} /></label>
             <label className={labelClass}><span className={labelTextClass}>Repair type</span><select name="repair_type" className={inputClass} defaultValue="collision"><option value="collision">Collision</option><option value="mechanical">Mechanical</option><option value="mixed">Collision + mechanical</option><option value="assessment">Assessment only</option></select></label>
             <label className={labelClass}><span className={labelTextClass}>Repair size</span><select name="repair_size" className={inputClass} defaultValue=""><option value="">Not classified</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option><option value="major">Major</option></select></label>
-            <label className={labelClass}><span className={labelTextClass}>Work source</span><input name="work_source" className={inputClass} placeholder="Insurer, private, fleet…" /></label>
+            <label className={labelClass}><span className={labelTextClass}>Work source</span><input name="work_source" className={inputClass} placeholder="Defaults from insurer selection" /></label>
             <label className={labelClass}><span className={labelTextClass}>Job reference</span><input name="job_reference" className={inputClass} /></label>
             <label className={labelClass}><span className={labelTextClass}>Authority reference</span><input name="authority_reference" className={inputClass} /></label>
             <label className={`${labelClass} md:col-span-2 lg:col-span-3`}><span className={labelTextClass}>Accident description</span><textarea name="accident_description" rows={4} className={inputClass} placeholder="Brief description of the incident and reported damage." /></label>
