@@ -4,64 +4,71 @@
   --background: #f6f8fb;
   --surface: #ffffff;
   --surface-2: #f8fafc;
-  --surface-3: #eef6f4;
-  --border: #e2e8f0;
+  --surface-3: #eef7f4;
+  --border: #dfe6ee;
   --text: #0f172a;
   --muted: #64748b;
   --brand: #2ebc98;
-  --brand-strong: #178f75;
-  --warning: #d99b24;
-  --danger: #dc4c64;
+  --brand-strong: #159476;
+  --warning: #b7791f;
+  --danger: #dc2626;
 }
 
 * { box-sizing: border-box; }
 html { background: var(--background); }
 body {
   margin: 0;
+  min-height: 100vh;
   background: var(--background);
   color: var(--text);
   font-family: var(--font-geist-sans), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 button,a,input,select,textarea { font: inherit; }
-button { cursor: pointer; }
-input, select, textarea {
+button,a { -webkit-tap-highlight-color: transparent; }
+input,select,textarea {
   color: var(--text);
-  background: #fff;
+  background-color: #fff;
 }
-::placeholder { color: #94a3b8; }
-::selection { background: rgba(46, 188, 152, 0.2); }
+input::placeholder,textarea::placeholder { color: #94a3b8; }
+input:focus,select:focus,textarea:focus {
+  outline: none;
+  border-color: rgba(46,188,152,.7);
+  box-shadow: 0 0 0 3px rgba(46,188,152,.12);
+}
+::selection { background: rgba(46,188,152,.22); }
+
+/* Compatibility layer while existing estimator screens inherit the light system. */
+.text-white { color: var(--text) !important; }
+[class*="bg-[#091322]"],
+[class*="bg-[#07101d]"],
+[class*="bg-[#050b14]"],
+[class*="bg-[#0a1423]"],
+[class*="bg-[#08101d]"] { background-color: var(--surface-2) !important; }
+[class*="hover:bg-white/5"]:hover,
+[class*="hover:bg-white/10"]:hover { background-color: var(--surface-3) !important; }
 
 .app-card {
-  background: #fff;
   border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 1rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 1px 2px rgba(15,23,42,.03), 0 8px 28px rgba(15,23,42,.035);
 }
-
 .app-input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: .75rem;
   background: #fff;
-  padding: 0.7rem 0.8rem;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  padding: .7rem .8rem;
+  font-size: .875rem;
 }
-.app-input:focus {
-  border-color: rgba(46, 188, 152, 0.8);
-  box-shadow: 0 0 0 3px rgba(46, 188, 152, 0.12);
+.app-label {
+  display: block;
+  margin-bottom: .4rem;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
-
-/* Compatibility layer while older screens are progressively migrated from the original dark theme. */
-:where([class*="bg-[#091322]"], [class*="bg-[#0a1423]"], [class*="bg-[#07101d]"], [class*="bg-[#050b14]"], [class*="bg-[#08101d]"]) {
-  background-color: #f8fafc !important;
-}
-:where([class*="bg-[#091322]"], [class*="bg-[#0a1423]"], [class*="bg-[#07101d]"], [class*="bg-[#050b14]"], [class*="bg-[#08101d]"]).text-white,
-:where([class*="bg-[#091322]"], [class*="bg-[#0a1423]"], [class*="bg-[#07101d]"], [class*="bg-[#050b14]"], [class*="bg-[#08101d]"]) .text-white {
-  color: #0f172a !important;
-}
-[class*="hover:text-white"]:hover { color: #0f172a !important; }
-.text-red-200 { color: #b91c1c !important; }
-.text-amber-100 { color: #92400e !important; }
-.text-sky-100 { color: #075985 !important; }

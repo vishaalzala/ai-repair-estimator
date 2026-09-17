@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Bell, Boxes, CalendarDays, CarFront, CircleGauge, CreditCard, FileText, LogOut, Menu, Search, Settings, Truck, UserCog, UserRound, Users, X } from "lucide-react";
+import { Boxes, CalendarDays, CarFront, CircleGauge, CreditCard, FileText, LogOut, Menu, Search, Settings, UserRound, Users, X } from "lucide-react";
 import { signOut } from "@/lib/auth/actions";
 
 const nav = [
@@ -11,27 +11,30 @@ const nav = [
   { href: "/jobs", label: "Jobs", icon: CarFront },
   { href: "/daily-jobs", label: "Daily Jobs", icon: CalendarDays },
   { href: "/parts", label: "Parts", icon: Boxes },
-  { href: "/suppliers", label: "Suppliers", icon: Truck },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/team", label: "Team", icon: UserCog },
   { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-function isActive(pathname: string, href: string) {
+function active(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function Navigation({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <nav className="space-y-1">
       {nav.map((item) => {
         const Icon = item.icon;
-        const active = isActive(pathname, item.href);
+        const selected = active(pathname, item.href);
         return (
-          <Link key={item.href} href={item.href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-[#e8f7f2] text-[#126f5d]" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}>
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${selected ? "bg-[var(--surface-3)] text-[var(--brand-strong)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"}`}
+          >
             <Icon className="size-4" />{item.label}
           </Link>
         );
@@ -40,61 +43,67 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
-export function AppShell({ children, organizationName, role }: { children: React.ReactNode; organizationName: string; role: string }) {
+export function AppShell({
+  children,
+  organizationName,
+  role,
+}: {
+  children: React.ReactNode;
+  organizationName: string;
+  role: string;
+}) {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const identity = (
-    <>
-      <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}>
-        <span className="grid size-10 place-items-center rounded-xl bg-[var(--brand)] text-white shadow-sm"><CarFront className="size-5" /></span>
-        <span><strong className="block text-sm tracking-wide text-slate-950">RepairQuote AI</strong><span className="text-xs text-slate-500">Estimator workspace</span></span>
-      </Link>
-      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-        <div className="truncate text-xs font-semibold text-slate-900">{organizationName}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">{role.replaceAll("_", " ")}</div>
-      </div>
-    </>
-  );
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] md:grid md:grid-cols-[248px_1fr]">
-      <aside className="sticky top-0 hidden h-screen overflow-y-auto border-r border-slate-200 bg-white p-5 md:flex md:flex-col">
-        {identity}
-        <div className="mt-5"><NavLinks pathname={pathname} /></div>
-        <div className="mt-auto space-y-3 pt-6">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#178f75]"><CreditCard className="size-4" />Plan & usage</div>
-            <p className="text-xs leading-5 text-slate-500">Subscription and estimate processing usage are managed under Billing.</p>
-          </div>
-          <form action={signOut}><button type="submit" className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"><LogOut className="size-4" /> Sign out</button></form>
+    <div className="min-h-screen md:grid md:grid-cols-[260px_1fr]">
+      <aside className="hidden border-r border-[var(--border)] bg-white p-5 md:flex md:min-h-screen md:flex-col">
+        <Brand />
+        <WorkspaceCard organizationName={organizationName} role={role} />
+        <SearchBox />
+        <Navigation pathname={pathname} />
+        <div className="mt-auto space-y-2 pt-6">
+          <Link href="/profile" className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium transition ${active(pathname, "/profile") ? "bg-[var(--surface-3)] text-[var(--brand-strong)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"}`}><UserRound className="size-4" /> My profile</Link>
+          <form action={signOut}>
+            <button type="submit" className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text)]"><LogOut className="size-4" /> Sign out</button>
+          </form>
         </div>
       </aside>
 
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-6">
-          <button type="button" onClick={() => setMobileOpen(true)} className="grid size-10 place-items-center rounded-xl border border-slate-200 text-slate-700 md:hidden" aria-label="Open menu"><Menu className="size-5" /></button>
-          <Link href="/dashboard" className="font-semibold text-slate-950 md:hidden">RepairQuote AI</Link>
-          <form action="/search" method="get" className="ml-auto flex w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-[#2ebc98] focus-within:bg-white">
-            <Search className="size-4 shrink-0 text-slate-400" /><input name="q" aria-label="Search" className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search rego, job, claim, customer or VIN…" />
-          </form>
-          <Link href="/notifications" aria-label="Notifications" className={`grid size-10 shrink-0 place-items-center rounded-xl border transition ${isActive(pathname, "/notifications") ? "border-emerald-200 bg-emerald-50 text-[#178f75]" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}><Bell className="size-4" /></Link>
-          <Link href="/profile" aria-label="Profile" className={`grid size-10 shrink-0 place-items-center rounded-xl border transition ${isActive(pathname, "/profile") ? "border-emerald-200 bg-emerald-50 text-[#178f75]" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}><UserRound className="size-4" /></Link>
-        </header>
+        <div className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-[var(--border)] bg-white/95 px-4 backdrop-blur md:hidden">
+          <Brand compact />
+          <button onClick={() => setOpen(true)} className="grid size-10 place-items-center rounded-xl border border-[var(--border)] bg-white" aria-label="Open navigation"><Menu className="size-5" /></button>
+        </div>
+        {open ? (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <button className="absolute inset-0 bg-slate-900/25" aria-label="Close navigation" onClick={() => setOpen(false)} />
+            <aside className="relative h-full w-[86%] max-w-[320px] border-r border-[var(--border)] bg-white p-5 shadow-2xl">
+              <div className="mb-5 flex items-center justify-between"><Brand /><button onClick={() => setOpen(false)} className="grid size-9 place-items-center rounded-xl border border-[var(--border)]"><X className="size-4" /></button></div>
+              <WorkspaceCard organizationName={organizationName} role={role} />
+              <SearchBox />
+              <Navigation pathname={pathname} onNavigate={() => setOpen(false)} />
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <Link href="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-[var(--muted)]"><UserRound className="size-4" /> My profile</Link>
+                <form action={signOut}><button type="submit" className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-[var(--muted)]"><LogOut className="size-4" /> Sign out</button></form>
+              </div>
+            </aside>
+          </div>
+        ) : null}
         <main className="min-w-0">{children}</main>
       </div>
-
-      {mobileOpen ? (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button type="button" aria-label="Close menu" className="absolute inset-0 bg-slate-950/25" onClick={() => setMobileOpen(false)} />
-          <aside className="relative flex h-full w-[290px] max-w-[88vw] flex-col overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-3"><div className="flex-1">{identity}</div><button type="button" onClick={() => setMobileOpen(false)} className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-500"><X className="size-4" /></button></div>
-            <div className="mt-5"><NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} /></div>
-            <div className="mt-5 grid grid-cols-2 gap-2"><Link href="/notifications" onClick={() => setMobileOpen(false)} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-600"><Bell className="size-4" /> Alerts</Link><Link href="/profile" onClick={() => setMobileOpen(false)} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-600"><UserRound className="size-4" /> Profile</Link></div>
-            <form action={signOut} className="mt-auto pt-6"><button type="submit" className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"><LogOut className="size-4" /> Sign out</button></form>
-          </aside>
-        </div>
-      ) : null}
     </div>
   );
+}
+
+function Brand({ compact = false }: { compact?: boolean }) {
+  return <Link href="/dashboard" className={`${compact ? "mb-0" : "mb-6"} flex items-center gap-3`}><span className="grid size-10 place-items-center rounded-xl bg-[var(--brand)] text-[#05291f]"><CarFront className="size-5" /></span><span><strong className="block text-sm tracking-wide text-[var(--text)]">RepairQuote AI</strong><span className="text-xs text-[var(--muted)]">Estimator workspace</span></span></Link>;
+}
+
+function WorkspaceCard({ organizationName, role }: { organizationName: string; role: string }) {
+  return <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3"><div className="truncate text-xs font-semibold text-[var(--text)]">{organizationName}</div><div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">{role.replaceAll("_", " ")}</div></div>;
+}
+
+function SearchBox() {
+  return <form action="/search" method="get" className="mb-4"><label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5"><Search className="size-4 text-[var(--muted)]" /><input name="q" className="min-w-0 flex-1 bg-transparent text-xs outline-none" placeholder="Search rego, job, claim…" /></label></form>;
 }
