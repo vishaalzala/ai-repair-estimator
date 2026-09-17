@@ -52,3 +52,16 @@ input, select, textarea {
   border-color: rgba(46, 188, 152, 0.8);
   box-shadow: 0 0 0 3px rgba(46, 188, 152, 0.12);
 }
+
+/* Compatibility layer while older screens are progressively migrated from the original dark theme. */
+:where([class*="bg-[#091322]"], [class*="bg-[#0a1423]"], [class*="bg-[#07101d]"], [class*="bg-[#050b14]"], [class*="bg-[#08101d]"]) {
+  background-color: #f8fafc !important;
+}
+:where([class*="bg-[#091322]"], [class*="bg-[#0a1423]"], [class*="bg-[#07101d]"], [class*="bg-[#050b14]"], [class*="bg-[#08101d]"]).text-white,
+:where([class*="bg-[#091322]"], [class*="bg-[#0a1423]"], [class*="bg-[#07101d]"], [class*="bg-[#050b14]"], [class*="bg-[#08101d]"]) .text-white {
+  color: #0f172a !important;
+}
+[class*="hover:text-white"]:hover { color: #0f172a !important; }
+.text-red-200 { color: #b91c1c !important; }
+.text-amber-100 { color: #92400e !important; }
+.text-sky-100 { color: #075985 !important; }
