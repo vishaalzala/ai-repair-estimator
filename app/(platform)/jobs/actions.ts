@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { defaultWorkSourceForInsurer, normalizeInsuranceCustomer } from "@/lib/insurance/insurers";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -13,11 +14,15 @@ export type QuickJobInput = {
   make?: string;
   model?: string;
   modelYear?: string;
+  insurerName?: string;
   accidentDescription?: string;
 };
 
 export async function createQuickJob(input: QuickJobInput) {
   const { supabase, organizationId } = await requireOrganizationContext();
+  const insurerName = normalizeInsuranceCustomer(input.insurerName);
+  if (!insurerName) throw new Error("Select an insurer or Private Job before starting the assessment.");
+
   const payload = {
     customer_first_name: "",
     customer_last_name: "",
@@ -39,9 +44,9 @@ export async function createQuickJob(input: QuickJobInput) {
     adas_present: "",
     repair_type: "collision",
     repair_size: "",
-    work_source: "",
+    work_source: defaultWorkSourceForInsurer(insurerName),
     job_reference: "",
-    insurer_name: "",
+    insurer_name: insurerName,
     claim_number: "",
     policy_number: "",
     assessor_name: "",
@@ -75,6 +80,11 @@ export async function createJob(formData: FormData) {
   const make = value(formData, "make");
   const model = value(formData, "model");
   const adasValue = value(formData, "adas_present");
+  const insurerName = normalizeInsuranceCustomer(value(formData, "insurer_name"));
+  if (!insurerName) {
+    redirect("/jobs/new?error=Please%20select%20an%20insurer%20or%20Private%20Job");
+  }
+  const requestedWorkSource = value(formData, "work_source");
   const payload = {
     customer_first_name: firstName,
     customer_last_name: lastName,
@@ -96,9 +106,9 @@ export async function createJob(formData: FormData) {
     adas_present: adasValue,
     repair_type: value(formData, "repair_type"),
     repair_size: value(formData, "repair_size"),
-    work_source: value(formData, "work_source"),
+    work_source: requestedWorkSource || defaultWorkSourceForInsurer(insurerName),
     job_reference: value(formData, "job_reference"),
-    insurer_name: value(formData, "insurer_name"),
+    insurer_name: insurerName,
     claim_number: value(formData, "claim_number"),
     policy_number: value(formData, "policy_number"),
     assessor_name: value(formData, "assessor_name"),
