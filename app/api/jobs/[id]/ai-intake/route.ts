@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { analyzeVehicleIntake } from "@/lib/ai/tasks/vehicle-intake";
+import { modelFor } from "@/lib/ai/model-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -14,6 +16,7 @@ function empty(value: unknown) {
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: jobId } = await params;
   const fullPipeline = request.headers.get("x-ai-full-pipeline") === "1";
+  const forceRefresh = request.headers.get("x-ai-force-refresh") === "1";
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ message: "Authentication required." }, { status: 401 });
@@ -84,10 +87,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   await supabase.from("jobs").update({ status: "estimating" }).eq("organization_id", organizationId).eq("id", jobId);
 
-  const model = process.env.AI_INTAKE_MODEL?.trim() || process.env.AI_DAMAGE_MODEL?.trim();
+  const model = modelFor("intake");
   if (!process.env.OPENAI_API_KEY || !model) {
     return NextResponse.json({
-      message: "Draft estimate started and photos saved. Configure OpenAI and AI_INTAKE_MODEL (or AI_DAMAGE_MODEL) to auto-read the vehicle and prepare repair operations.",
+      message: "Draft estimate started and photos saved. Configure the AI provider to auto-read the vehicle and prepare repair operations.",
       jobId,
       estimateId: estimate.id,
     }, { status: 202 });
@@ -112,6 +115,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ message: "Draft estimate started, but private photo access could not be prepared for AI." }, { status: 202 });
   }
 
+  const vehicleForFingerprint = vehicleResult.data;
+  const inputFingerprint = createHash("sha256").update(JSON.stringify({
+    model,
+    photoIds: aiPhotos.map((photo) => photo.id).sort(),
+    hints: {
+      registration: vehicleForFingerprint?.registration ?? null,
+      vin: vehicleForFingerprint?.vin ?? null,
+      make: vehicleForFingerprint?.make ?? null,
+      model: vehicleForFingerprint?.model ?? null,
+      variant: vehicleForFingerprint?.variant ?? null,
+      modelYear: vehicleForFingerprint?.model_year ?? null,
+      accidentDescription: claimResult.data?.accident_description ?? null,
+    },
+  })).digest("hex");
+
+  if (!forceRefresh) {
+    const { data: reusableRun } = await supabase
+      .from("ai_analysis_runs")
+      .select("id, structured_output")
+      .eq("organization_id", organizationId)
+      .eq("job_id", jobId)
+      .eq("task", "vehicle_intake")
+      .eq("model", model)
+      .eq("status", "completed")
+      .contains("input_metadata", { input_fingerprint: inputFingerprint })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (reusableRun?.structured_output) {
+      return NextResponse.json({
+        message: "Smart photo analysis is already up to date. Reusing the saved result.",
+        jobId,
+        estimateId: estimate.id,
+        reused: true,
+        aiRunId: reusableRun.id,
+      });
+    }
+  }
+
   const { data: run, error: runError } = await supabase.from("ai_analysis_runs").insert({
     organization_id: organizationId,
     job_id: jobId,
@@ -119,7 +162,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     provider: "openai",
     model,
     status: "running",
-    input_metadata: { photo_ids: aiPhotos.map((photo) => photo.id), photo_count: aiPhotos.length, workflow: fullPipeline ? "full_estimate_pipeline" : "quick_intake" },
+    input_metadata: { photo_ids: aiPhotos.map((photo) => photo.id), photo_count: aiPhotos.length, workflow: fullPipeline ? "full_estimate_pipeline" : "quick_intake", input_fingerprint: inputFingerprint },
     created_by: auth.user.id,
   }).select("id").maybeSingle();
 

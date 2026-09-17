@@ -1,6 +1,7 @@
 import OpenAI, { toFile } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { AI_PROMPT_CACHE_KEYS } from "@/lib/ai/model-policy";
 
 const ExtractedDocumentSchema = z.object({
   title: z.string().min(1),
@@ -55,6 +56,9 @@ export async function extractAndEmbedKnowledgeDocument(input: {
   try {
     const response = await client.responses.parse({
       model: input.extractionModel,
+      reasoning: { effort: "low" },
+      prompt_cache_key: AI_PROMPT_CACHE_KEYS.document,
+      max_output_tokens: 6000,
       instructions: [
         "Extract workshop estimating knowledge from the provided document faithfully.",
         "Do not invent, correct or generalise beyond the document.",

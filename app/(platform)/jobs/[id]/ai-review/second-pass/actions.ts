@@ -4,18 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { reviewRepairEstimate } from "@/lib/ai/tasks/estimate-review";
+import { modelFor } from "@/lib/ai/model-policy";
 
 function clean(value: unknown) {
   return String(value ?? "").trim();
 }
 
-function clip(value: string, max = 1600) {
+function clip(value: string, max = 1000) {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
 export async function runSmartEstimateReview(jobId: string) {
   const { supabase, organizationId, userId } = await requireOrganizationContext();
-  const model = process.env.AI_REVIEW_MODEL?.trim();
+  const model = modelFor("review");
   if (!process.env.OPENAI_API_KEY || !model) {
     redirect(`/jobs/${jobId}/ai-review/second-pass?error=Smart%20review%20is%20not%20available%20right%20now.%20Please%20contact%20your%20platform%20administrator`);
   }
@@ -106,7 +107,7 @@ export async function runSmartEstimateReview(jobId: string) {
     if (!source && !chunk.source_id) return [];
     return [`K:${chunk.source_id} | ${source?.title ?? "Document knowledge"}${chunk.page_number ? ` | page ${chunk.page_number}` : ""}${chunk.section_title ? ` | ${chunk.section_title}` : ""}\n${clip(chunk.content, 1200)}`];
   });
-  const knowledgeContext = [...manualKnowledge, ...chunkKnowledge].slice(0, 25).join("\n\n") || "No workshop/user knowledge retrieved.";
+  const knowledgeContext = [...manualKnowledge, ...chunkKnowledge].slice(0, 10).join("\n\n") || "No workshop/user knowledge retrieved.";
 
   const { data: run, error: runError } = await supabase.from("ai_analysis_runs").insert({
     organization_id: organizationId,

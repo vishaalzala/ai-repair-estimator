@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import type { DamageAnalysis } from "@/lib/ai/tasks/damage-analysis";
 import { generateRepairEstimateDraft } from "@/lib/ai/tasks/estimate-generation";
+import { estimateModelForDamage } from "@/lib/ai/model-policy";
 import { calculateLineTotal } from "@/lib/estimating/pricing-engine";
 
-function clip(value: string, max = 1400) {
+function clip(value: string, max = 900) {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
@@ -31,7 +33,7 @@ function selectRelevantKnowledge(
       return { source, score: score + trainingBoost, index };
     })
     .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, 18)
+    .slice(0, 8)
     .map(({ source }) => source);
 }
 
@@ -94,8 +96,18 @@ async function ensurePrimaryEstimate(jobId: string) {
 
 export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis: DamageAnalysis) {
   const { supabase, organizationId, userId, job, estimate } = await ensurePrimaryEstimate(jobId);
-  const model = process.env.AI_ESTIMATE_MODEL?.trim() || process.env.AI_REVIEW_MODEL?.trim() || process.env.AI_DAMAGE_MODEL?.trim();
-  if (!process.env.OPENAI_API_KEY || !model) throw new Error("AI estimate generation is not configured");
+  const modelDecision = estimateModelForDamage({
+    severity: damageAnalysis.severity,
+    vehicleConfidence: damageAnalysis.vehicleIdentification.confidence,
+    findingCount: damageAnalysis.findings.length,
+    lowConfidenceFindings: damageAnalysis.findings.filter((finding) => finding.confidence < 0.55).length,
+    structuralFinding: damageAnalysis.findings.some((finding) =>
+      finding.suggestedAction === "CUT&WELD" ||
+      /structural|chassis|rail|pillar|apron|floor|inner panel/i.test(`${finding.component} ${finding.observedDamage}`),
+    ),
+  });
+  const model = modelDecision.model;
+  if (!process.env.OPENAI_API_KEY) throw new Error("AI estimate generation is not configured");
 
   const [vehicleResult, claimResult, categoriesResult, existingItemsResult, knowledgeResult] = await Promise.all([
     job.vehicle_id
@@ -196,6 +208,49 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
     .map((source) => `K:${source.id} | scope=${source.scope} | ${source.title}\n${clip(source.content_text ?? "")}`)
     .join("\n\n") || "No additional workshop knowledge supplied.";
 
+  const inputFingerprint = createHash("sha256").update(JSON.stringify({
+    model,
+    vehicleContext,
+    claimContext,
+    damageContext,
+    workshopContext,
+    knowledgeSourceIds: relevantKnowledge.map((source) => source.id),
+  })).digest("hex");
+
+  const { data: reusableRun } = await supabase
+    .from("ai_analysis_runs")
+    .select("id, structured_output")
+    .eq("organization_id", organizationId)
+    .eq("job_id", jobId)
+    .eq("task", "estimate_generation")
+    .eq("model", model)
+    .eq("status", "completed")
+    .contains("input_metadata", { input_fingerprint: inputFingerprint })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (reusableRun) {
+    const { count: reusableItemCount } = await supabase
+      .from("estimate_items")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("estimate_id", estimate.id)
+      .eq("source_type", "ai")
+      .eq("source_ref", reusableRun.id);
+
+    if ((reusableItemCount ?? 0) > 0) {
+      const previous = reusableRun.structured_output as { summary?: string; inspectionNotes?: string[] } | null;
+      return {
+        estimateId: estimate.id,
+        itemCount: reusableItemCount ?? 0,
+        summary: previous?.summary ?? "Existing AI estimate is already up to date.",
+        inspectionNotes: previous?.inspectionNotes ?? [],
+        reused: true,
+      };
+    }
+  }
+
   const { data: run, error: runError } = await supabase.from("ai_analysis_runs").insert({
     organization_id: organizationId,
     job_id: jobId,
@@ -211,6 +266,9 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       estimate_style: "insurance_project_line_by_line",
       knowledge_sources_selected: relevantKnowledge.map((source) => source.id),
       insurer_name: insurerName || null,
+      model_policy_tier: modelDecision.tier,
+      model_policy_reason: modelDecision.reason,
+      input_fingerprint: inputFingerprint,
     },
     created_by: userId,
   }).select("id").single();
@@ -358,7 +416,15 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
         actor_user_id: userId,
         event_type: "ai_estimate_generated",
         title: "AI full estimate generated",
-        details: { ai_run_id: run.id, estimate_id: estimate.id, items: inserted.length, model, estimate_style: "insurance_project_line_by_line" },
+        details: {
+          ai_run_id: run.id,
+          estimate_id: estimate.id,
+          items: inserted.length,
+          model,
+          model_policy_tier: modelDecision.tier,
+          model_policy_reason: modelDecision.reason,
+          estimate_style: "insurance_project_line_by_line",
+        },
       }),
     ]);
 

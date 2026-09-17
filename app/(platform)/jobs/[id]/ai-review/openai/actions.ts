@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { reviewRepairEstimate } from "@/lib/ai/tasks/estimate-review";
+import { modelFor } from "@/lib/ai/model-policy";
 
 function clean(value: unknown) {
   return String(value ?? "").trim();
@@ -15,9 +16,9 @@ function clip(value: string, max = 1600) {
 
 export async function runOpenAiEstimateReview(jobId: string) {
   const { supabase, organizationId, userId } = await requireOrganizationContext();
-  const model = process.env.AI_REVIEW_MODEL?.trim();
+  const model = modelFor("review");
   if (!process.env.OPENAI_API_KEY || !model) {
-    redirect(`/jobs/${jobId}/ai-review/openai?error=OpenAI%20review%20is%20not%20configured.%20Add%20the%20API%20key%20and%20AI_REVIEW_MODEL%20securely%20in%20the%20deployment%20environment`);
+    redirect(`/jobs/${jobId}/ai-review/openai?error=Smart%20review%20is%20not%20configured`);
   }
 
   const { data: job } = await supabase

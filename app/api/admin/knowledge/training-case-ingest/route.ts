@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPlatformAdminIfSignedIn } from "@/lib/admin/context";
 import { extractTrainingCaseFromQuoteAndPhotos } from "@/lib/ai/tasks/training-case-ingestion";
+import { modelFor } from "@/lib/ai/model-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Upload both the quote and photo ZIP before processing." }, { status: 400 });
   }
 
-  const model = process.env.AI_DOCUMENT_MODEL?.trim() || process.env.AI_ESTIMATE_MODEL?.trim() || process.env.AI_DAMAGE_MODEL?.trim();
+  const model = modelFor("training");
   if (!process.env.OPENAI_API_KEY || !model) {
     return NextResponse.json({ message: "Training extraction is not configured. Set the AI document/estimate model and API key." }, { status: 503 });
   }

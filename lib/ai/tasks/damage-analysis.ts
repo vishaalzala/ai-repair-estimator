@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { AI_PROMPT_CACHE_KEYS } from "@/lib/ai/model-policy";
 
 export const DamageAnalysisSchema = z.object({
   impactArea: z.string().min(1),
@@ -76,20 +77,33 @@ export async function analyzeVehicleDamage(input: {
     `Reported accident / estimator note: ${input.vehicle.accidentDescription ?? "not provided"}`,
   ].join("\n");
 
-  const photoLegend = input.photos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; category=${photo.category}; file=${photo.fileName}`).join("\n");
+  const visionPhotos = input.photos.slice(0, 16);
+  const highDetailIds = new Set(
+    visionPhotos
+      .filter((photo) => photo.category === "identification" || photo.category === "document")
+      .slice(0, 2)
+      .map((photo) => photo.id),
+  );
+  const photoLegend = visionPhotos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; category=${photo.category}; file=${photo.fileName}`).join("\n");
   const content: Array<
     | { type: "input_text"; text: string }
-    | { type: "input_image"; image_url: string; detail: "high" }
+    | { type: "input_image"; image_url: string; detail: "low" | "high" }
   > = [
     {
       type: "input_text",
       text: `${vehicleText}\n\nPHOTO LEGEND\n${photoLegend}\n\nAnalyse the visible vehicle identity and visible damage in the supplied photos. Treat the reported accident / estimator note as important repair context, but keep unsupported hidden damage as an inspection recommendation.`,
     },
-    ...input.photos.map((photo) => ({ type: "input_image" as const, image_url: photo.signedUrl, detail: "high" as const })),
+    ...visionPhotos.map((photo) => ({
+      type: "input_image" as const,
+      image_url: photo.signedUrl,
+      detail: highDetailIds.has(photo.id) ? "high" as const : "low" as const,
+    })),
   ];
 
   const response = await client.responses.parse({
     model: input.model,
+    reasoning: { effort: "low" },
+    prompt_cache_key: AI_PROMPT_CACHE_KEYS.damage,
     instructions: [
       "You are assisting a professional automotive repair estimator with preliminary visible-damage review.",
       "Describe only damage that is visibly supported by the supplied photos and provided vehicle context.",
