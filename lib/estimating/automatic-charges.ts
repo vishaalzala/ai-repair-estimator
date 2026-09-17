@@ -50,6 +50,7 @@ export async function syncAutomaticEstimateCharges(jobId: string) {
     !item.extra_selected &&
     !AUTOMATIC_REFS.includes(item.source_ref ?? ""),
   );
+  const hasActiveQuote = includedNonAutomatic.length > 0;
 
   const eligibleLabour = includedNonAutomatic.reduce((sum, item) => {
     const category = categoryById.get(item.category_id);
@@ -59,7 +60,6 @@ export async function syncAutomaticEstimateCharges(jobId: string) {
 
   const panelPercent = Number(settings?.panel_materials_percent ?? 5);
   const panelAmount = roundMoney(eligibleLabour * (Math.max(0, panelPercent) / 100));
-  const hasIncludedPaint = includedNonAutomatic.some((item) => categoryById.get(item.category_id)?.code === "paint" && Number(item.line_total_ex_tax ?? 0) > 0);
   const paintSetupAmount = roundMoney(Number(settings?.paint_setup_amount ?? 70));
   const environmentalFeeAmount = roundMoney(Number(settings?.environmental_fee_amount ?? 10));
 
@@ -89,8 +89,8 @@ export async function syncAutomaticEstimateCharges(jobId: string) {
     operationCode: "PAINT-SETUP",
     description: "Paint Setup",
     amount: paintSetupAmount,
-    enabled: Boolean(settings?.paint_setup_enabled ?? true) && hasIncludedPaint && paintSetupAmount > 0,
-    notes: "Automatic paint setup charge from workshop defaults. Applied when included paint work exists.",
+    enabled: Boolean(settings?.paint_setup_enabled ?? true) && hasActiveQuote && paintSetupAmount > 0,
+    notes: "Automatic paint setup charge from workshop defaults. Applied to every active quote.",
   });
 
   await syncAutomaticLine({
@@ -104,8 +104,8 @@ export async function syncAutomaticEstimateCharges(jobId: string) {
     operationCode: "ENV-FEE",
     description: "Environmental Fee",
     amount: environmentalFeeAmount,
-    enabled: Boolean(settings?.environmental_fee_enabled ?? true) && environmentalFeeAmount > 0 && includedNonAutomatic.length > 0,
-    notes: "Automatic environmental fee from workshop defaults.",
+    enabled: Boolean(settings?.environmental_fee_enabled ?? true) && environmentalFeeAmount > 0 && hasActiveQuote,
+    notes: "Automatic environmental fee from workshop defaults. Applied to every active quote.",
   });
 }
 
