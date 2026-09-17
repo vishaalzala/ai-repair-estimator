@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractAndEmbedKnowledgeDocument } from "@/lib/ai/tasks/document-ingestion";
+import { embeddingModel: embeddingModelName, modelFor } from "@/lib/ai/model-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -20,11 +21,11 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!document) return NextResponse.json({ message: "Document not found or not accessible." }, { status: 404 });
 
-  const extractionModel = process.env.AI_DOCUMENT_MODEL?.trim();
-  const embeddingModel = process.env.AI_EMBEDDING_MODEL?.trim();
-  if (!process.env.OPENAI_API_KEY || !extractionModel || !embeddingModel) {
+  const extractionModel = modelFor("document");
+  const embeddingModelName = embeddingModel();
+  if (!process.env.OPENAI_API_KEY || !extractionModel || !embeddingModelName) {
     await supabase.from("knowledge_documents").update({ processing_status: "pending", processing_error: null }).eq("id", document.id);
-    return NextResponse.json({ message: "Document stored privately. AI ingestion will run after OpenAI document and embedding models are configured." }, { status: 202 });
+    return NextResponse.json({ message: "Document stored privately. AI ingestion will run after AI document and embedding models are configured." }, { status: 202 });
   }
 
   await Promise.all([
