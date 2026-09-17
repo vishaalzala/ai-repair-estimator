@@ -22,6 +22,12 @@ function requestHostname(request: NextRequest) {
   return host.split(":")[0].toLowerCase();
 }
 
+function privateNoStore(response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  return response;
+}
+
 function redirectLegacyAliasToCanonical(request: NextRequest) {
   if (requestHostname(request) !== LEGACY_AUTH_HOST) return null;
 
@@ -29,7 +35,7 @@ function redirectLegacyAliasToCanonical(request: NextRequest) {
   url.protocol = "https:";
   url.hostname = CANONICAL_AUTH_HOST;
   url.port = "";
-  return NextResponse.redirect(url, 307);
+  return privateNoStore(NextResponse.redirect(url, 307));
 }
 
 function redirectToLogin(request: NextRequest, reason?: string) {
@@ -38,7 +44,7 @@ function redirectToLogin(request: NextRequest, reason?: string) {
   url.pathname = isAdminRoute ? "/admin/login" : "/login";
   if (reason) url.searchParams.set("setup", reason);
   else if (!isAdminRoute) url.searchParams.set("next", request.nextUrl.pathname);
-  return NextResponse.redirect(url);
+  return privateNoStore(NextResponse.redirect(url));
 }
 
 function redirectExpiredRecoveryLink(request: NextRequest) {
@@ -61,7 +67,7 @@ function redirectExpiredRecoveryLink(request: NextRequest) {
     "error",
     "That password reset link is invalid or has expired. Please request a new reset link.",
   );
-  return NextResponse.redirect(url);
+  return privateNoStore(NextResponse.redirect(url));
 }
 
 function redirectAuthCodeToConfirm(request: NextRequest) {
@@ -87,14 +93,14 @@ function redirectAuthCodeToConfirm(request: NextRequest) {
     url.searchParams.set("next", requestedNext);
   }
 
-  return NextResponse.redirect(url);
+  return privateNoStore(NextResponse.redirect(url));
 }
 
 export async function updateSession(request: NextRequest) {
   const canonicalRedirect = redirectLegacyAliasToCanonical(request);
   if (canonicalRedirect) return canonicalRedirect;
 
-  let response = NextResponse.next({ request });
+  let response = privateNoStore(NextResponse.next({ request }));
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
     pathname === "/login" ||
@@ -126,12 +132,16 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, cacheHeaders) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = privateNoStore(NextResponse.next({ request }));
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
+          Object.entries(cacheHeaders ?? {}).forEach(([name, value]) => {
+            response.headers.set(name, value);
+          });
+          response.headers.set("Cache-Control", "private, no-store, max-age=0");
         },
       },
     });
@@ -150,7 +160,7 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       url.search = "";
-      return NextResponse.redirect(url);
+      return privateNoStore(NextResponse.redirect(url));
     }
 
     return response;
