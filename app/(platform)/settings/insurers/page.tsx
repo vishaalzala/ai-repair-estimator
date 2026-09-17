@@ -1,0 +1,23 @@
+import Link from "next/link";
+import { ArrowLeft, Plus, Shield } from "lucide-react";
+import { requireOrganizationContext } from "@/lib/auth/context";
+import { saveInsurer } from "./actions";
+
+export default async function InsurersPage({ searchParams }: { searchParams: Promise<{ message?: string; error?: string }> }) {
+  const query = await searchParams;
+  const { supabase, organizationId } = await requireOrganizationContext();
+  const { data } = await supabase.from("insurers").select("id,name,contact_name,email,phone,notes,updated_at").eq("organization_id", organizationId).order("name");
+  const insurers = data ?? [];
+
+  return <div className="mx-auto max-w-[1200px] px-5 py-6 text-slate-950 sm:px-7 lg:px-9 lg:py-8">
+    <Link href="/settings" className="mb-5 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-950"><ArrowLeft className="size-4" /> Back to settings</Link>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#178f75]"><Shield className="size-4" /> Claim directory</div><h1 className="text-3xl font-semibold">Insurers & assessors</h1><p className="mt-2 text-sm text-slate-500">Save common insurer contacts so claim details can be entered faster.</p></div><details><summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-white"><Plus className="size-4" /> Add insurer</summary><div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-lg sm:absolute sm:right-8 sm:z-20 sm:w-[520px]"><InsurerForm /></div></details></header>
+    {query.message ? <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{query.message}</div> : null}
+    {query.error ? <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{query.error}</div> : null}
+    <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">{insurers.length ? <div className="divide-y divide-slate-100">{insurers.map((insurer) => <details key={insurer.id}><summary className="grid cursor-pointer list-none gap-3 px-5 py-4 hover:bg-slate-50 md:grid-cols-[1.1fr_1fr_1fr]"><div><p className="font-semibold">{insurer.name}</p><p className="mt-1 text-xs text-slate-500">{insurer.contact_name || "No default contact"}</p></div><div className="text-sm text-slate-600">{insurer.email || "No email"}</div><div className="text-sm text-slate-600">{insurer.phone || "No phone"}</div></summary><div className="border-t border-slate-100 bg-slate-50 p-5"><InsurerForm insurer={insurer} /></div></details>)}</div> : <div className="grid min-h-72 place-items-center p-8 text-center"><div><Shield className="mx-auto size-9 text-slate-400" /><p className="mt-4 font-medium">No insurers saved</p><p className="mt-2 text-sm text-slate-500">Add your most frequently used insurers and assessor contacts.</p></div></div>}</section>
+  </div>;
+}
+
+function InsurerForm({ insurer }: { insurer?: { id:string; name:string; contact_name:string|null; email:string|null; phone:string|null; notes:string|null } }) {
+  return <form action={saveInsurer} className="grid gap-3 sm:grid-cols-2">{insurer ? <input type="hidden" name="insurer_id" value={insurer.id} /> : null}<label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-medium text-slate-600">Insurer name</span><input className="app-input" name="name" required defaultValue={insurer?.name ?? ""} /></label><label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-medium text-slate-600">Default assessor/contact</span><input className="app-input" name="contact_name" defaultValue={insurer?.contact_name ?? ""} /></label><label><span className="mb-1.5 block text-xs font-medium text-slate-600">Email</span><input className="app-input" type="email" name="email" defaultValue={insurer?.email ?? ""} /></label><label><span className="mb-1.5 block text-xs font-medium text-slate-600">Phone</span><input className="app-input" name="phone" defaultValue={insurer?.phone ?? ""} /></label><label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-medium text-slate-600">Notes</span><textarea className="app-input" name="notes" rows={3} defaultValue={insurer?.notes ?? ""} /></label><div className="sm:col-span-2 sm:text-right"><button className="rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-white">Save insurer</button></div></form>;
+}
