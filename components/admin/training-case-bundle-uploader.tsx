@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Archive, CheckCircle2, FileText, Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,15 @@ import { approveExtractedTrainingCase } from "@/app/admin/(panel)/knowledge/trai
 const quoteExtensions = new Set(["pdf", "docx", "txt", "md"]);
 const maxQuoteBytes = 25 * 1024 * 1024;
 const maxZipBytes = 120 * 1024 * 1024;
+
+type ReadyCase = {
+  id: string;
+  title: string;
+  source_document_name: string | null;
+  source_photo_archive_name: string | null;
+  photo_count: number;
+  updated_at: string;
+};
 
 function extension(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
@@ -27,7 +36,55 @@ export function TrainingCaseBundleUploader({ userId }: { userId: string }) {
   ), []);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [readyCaseId, setReadyCaseId] = useState<string | null>(null);
+  const [readyCases, setReadyCases] = useState<ReadyCase[]>([]);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  async function refreshReadyCases() {
+    const { data } = await supabase
+      .from("estimator_training_cases")
+      .select("id,title,source_document_name,source_photo_archive_name,photo_count,updated_at")
+      .eq("status", "draft")
+      .eq("ingestion_status", "ready")
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    setReadyCases((data ?? []) as ReadyCase[]);
+  }
+
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from("estimator_training_cases")
+      .select("id,title,source_document_name,source_photo_archive_name,photo_count,updated_at")
+      .eq("status", "draft")
+      .eq("ingestion_status", "ready")
+      .order("updated_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (active) setReadyCases((data ?? []) as ReadyCase[]);
+      });
+    return () => { active = false; };
+  }, [supabase]);
+
+  async function approveCase(caseId: string) {
+    setApprovingId(caseId);
+    const formData = new FormData();
+    formData.set("training_case_id", caseId);
+    await approveExtractedTrainingCase(formData);
+    const { data: verification } = await supabase
+      .from("estimator_training_cases")
+      .select("status,knowledge_source_id")
+      .eq("id", caseId)
+      .maybeSingle();
+
+    if (verification?.status === "approved" && verification.knowledge_source_id) {
+      setStatus("Training Case approved and published to estimator memory.");
+    } else {
+      setStatus("The Training Case could not be published. Review the case and try again.");
+    }
+    await refreshReadyCases();
+    router.refresh();
+    setApprovingId(null);
+  }
 
   async function submit(formData: FormData) {
     const quote = formData.get("quote");
@@ -35,7 +92,6 @@ export function TrainingCaseBundleUploader({ userId }: { userId: string }) {
     const insurerName = String(formData.get("insurer_name") ?? "").trim();
     if (!(quote instanceof File) || !(archive instanceof File)) return;
 
-    setReadyCaseId(null);
     if (!quoteExtensions.has(extension(quote.name))) {
       setStatus("Quote must be PDF, DOCX, TXT or Markdown.");
       return;
@@ -116,11 +172,11 @@ export function TrainingCaseBundleUploader({ userId }: { userId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ caseId: trainingCase.id }),
       });
-      const result = await response.json().catch(() => ({})) as { message?: string; caseId?: string };
+      const result = await response.json().catch(() => ({})) as { message?: string };
       if (!response.ok) throw new Error(result.message || "Training Case extraction failed.");
 
-      setReadyCaseId(result.caseId || trainingCase.id);
       setStatus(result.message || "Training Case ready for approval.");
+      await refreshReadyCases();
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to process the Training Case.";
@@ -181,12 +237,21 @@ export function TrainingCaseBundleUploader({ userId }: { userId: string }) {
         {status ? <p aria-live="polite" className="rounded-xl border border-[var(--border)] bg-[#091322] px-3 py-2.5 text-xs text-[var(--muted)]">{status}</p> : null}
       </form>
 
-      {readyCaseId ? (
-        <form action={approveExtractedTrainingCase} className="flex flex-col gap-3 rounded-2xl border border-[var(--brand)]/40 bg-[rgba(88,211,178,0.08)] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <input type="hidden" name="training_case_id" value={readyCaseId} />
-          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--brand)]" /><div><div className="text-sm font-semibold">Training Case extracted and ready</div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">Review the draft case details on this page. When satisfied, publish its price-neutral structure and lessons to future estimates.</p></div></div>
-          <button className="shrink-0 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[#06110e]">Approve & Teach Estimator</button>
-        </form>
+      {readyCases.length ? (
+        <section className="grid gap-2 rounded-2xl border border-[var(--brand)]/35 bg-[rgba(88,211,178,0.06)] p-4">
+          <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--brand)]" /><div><div className="text-sm font-semibold">Ready for approval</div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">These uploaded cases have been extracted but are not influencing future estimates yet.</p></div></div>
+          <div className="grid gap-2">
+            {readyCases.map((trainingCase) => (
+              <div key={trainingCase.id} className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[#091322] p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0"><div className="truncate text-sm font-semibold text-white">{trainingCase.title}</div><p className="mt-1 text-[10px] text-[var(--muted)]">{trainingCase.photo_count} photos · {trainingCase.source_document_name || "quote"} · {trainingCase.source_photo_archive_name || "photo ZIP"}</p></div>
+                <button type="button" onClick={() => approveCase(trainingCase.id)} disabled={approvingId === trainingCase.id} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[#06110e] disabled:opacity-50">
+                  {approvingId === trainingCase.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                  {approvingId === trainingCase.id ? "Publishing…" : "Approve & Teach Estimator"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
     </div>
   );
