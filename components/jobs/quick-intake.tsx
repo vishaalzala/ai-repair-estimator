@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createQuickJob } from "@/app/(platform)/jobs/actions";
 import { PreparingEstimateOverlay } from "@/components/jobs/preparing-estimate-overlay";
+import { INSURANCE_CUSTOMERS, PRIVATE_JOB_OPTION } from "@/lib/insurance/insurers";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const maxBytes = 25 * 1024 * 1024;
@@ -39,6 +40,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [modelYear, setModelYear] = useState("");
+  const [insurerName, setInsurerName] = useState("");
   const [notes, setNotes] = useState("");
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -85,6 +87,10 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
       setStatus("Add at least one vehicle photo to start AI Quick Intake.");
       return;
     }
+    if (!insurerName) {
+      setStatus("Select an insurer or Private Job before starting the estimate.");
+      return;
+    }
 
     setWorking(true);
     setStatus("Creating assessment…");
@@ -98,6 +104,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
         make,
         model,
         modelYear,
+        insurerName,
         accidentDescription: notes,
       });
       jobId = created.jobId;
@@ -141,7 +148,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
       }
 
       setBackgroundJobId(jobId);
-      setStatus("Reading the vehicle, damage photos and your notes…");
+      setStatus("Reading the vehicle, damage photos, insurer context and your notes…");
       const result = await waitForEstimate(jobId, startResult.startedAt);
 
       if (result.status === "completed") {
@@ -186,7 +193,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">AI Quick Intake</div>
               <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">Upload the car. Start the estimate.</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Add vehicle photos and anything you already know. Customer details can stay empty. AI uses the photos and your notes to read supported vehicle details, identify visible damage and build a preliminary estimate for estimator review.</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Add vehicle photos, select the insurer or Private Job, and enter anything you already know. The selected insurer is saved before processing so insurer-specific estimating intelligence can be applied as that memory grows.</p>
             </div>
           </div>
         </div>
@@ -232,11 +239,20 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
             </div>
           ) : null}
 
+          <div className="grid gap-2">
+            <label htmlFor="quick-insurer" className="text-sm font-semibold text-slate-800">Insurer / job type <span className="text-red-500">*</span></label>
+            <select id="quick-insurer" value={insurerName} onChange={(event) => setInsurerName(event.target.value)} disabled={working} className={lightInputClass}>
+              <option value="" disabled>Select insurer or Private Job</option>
+              {INSURANCE_CUSTOMERS.map((insurer) => <option key={insurer} value={insurer}>{insurer}</option>)}
+            </select>
+            <p className="text-sm leading-6 text-slate-600">Choose <strong>{PRIVATE_JOB_OPTION}</strong> when no insurer is involved. Insurance jobs keep the insurer name on the claim for future insurer-specific approval intelligence.</p>
+          </div>
+
           <div>
             <label className="grid gap-2 text-sm">
               <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">Anything you already know <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Recommended</span></span>
               <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
-              <span className="text-sm leading-6 text-slate-600">AI combines these notes with the uploaded damage photos when deciding what repair operations should be included in the estimate.</span>
+              <span className="text-sm leading-6 text-slate-600">AI combines these notes with the uploaded damage photos and selected job context when deciding what repair operations should be included in the estimate.</span>
             </label>
           </div>
 
@@ -256,7 +272,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
               <p>Customer name is not required. AI suggestions remain unverified until an estimator reviews them.</p>
               {status ? <p aria-live="polite" className="mt-1 font-semibold text-emerald-700">{status}</p> : null}
             </div>
-            <button type="button" onClick={startQuickIntake} disabled={working || !files.length} className="inline-flex min-h-12 min-w-48 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none">
+            <button type="button" onClick={startQuickIntake} disabled={working || !files.length || !insurerName} className="inline-flex min-h-12 min-w-48 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none">
               {working ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}
               {working ? "Preparing estimate…" : "Start AI estimate"}
             </button>
