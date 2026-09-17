@@ -15,7 +15,7 @@ export async function runDamageAnalysis(jobId: string) {
   const model = modelFor("damage");
 
   if (!process.env.OPENAI_API_KEY || !model) {
-    redirect(`/jobs/${jobId}/damage?error=OpenAI%20is%20not%20configured%20yet.%20Add%20the%20API%20key%20and%20damage%20model%20securely%20in%20the%20deployment%20environment`);
+    redirect(`/jobs/${jobId}/damage?error=Smart%20damage%20analysis%20is%20not%20configured%20yet`);
   }
 
   const { data: job } = await supabase
@@ -165,7 +165,7 @@ export async function runDamageAnalysis(jobId: string) {
       destination = `/jobs/${jobId}/estimate?message=AI%20analysed%20the%20photos%20and%20created%20${generatedEstimate.itemCount}%20preliminary%20estimate%20lines.%20Review%20and%20edit%20every%20line%20before%20approval`;
     }
   } catch (error) {
-    console.error("OpenAI damage analysis failed", error instanceof Error ? error.message : "unknown");
+    console.error("Smart damage analysis failed", error instanceof Error ? error.message : "unknown");
     await supabase.from("ai_analysis_runs").update({
       status: "failed",
       error_code: error instanceof Error ? error.message.slice(0, 250) : "unknown_error",
