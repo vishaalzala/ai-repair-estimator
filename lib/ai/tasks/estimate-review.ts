@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { AI_PROMPT_CACHE_KEYS } from "@/lib/ai/model-policy";
 
 export const EstimateReviewSchema = z.object({
   summary: z.string().min(1),
@@ -36,6 +37,9 @@ export async function reviewRepairEstimate(input: {
   const client = new OpenAI({ apiKey });
   const response = await client.responses.parse({
     model: input.model,
+    reasoning: { effort: "low" },
+    prompt_cache_key: AI_PROMPT_CACHE_KEYS.review,
+    max_output_tokens: 5000,
     instructions: [
       "You are a second-pass automotive repair estimate reviewer for a professional collision/mechanical workshop.",
       "Your job is to identify legitimate operations, inspections, dependencies or consistency issues the human estimator should REVIEW because they may be missing.",
