@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera, LoaderCircle, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { compressImageForUpload } from "@/lib/images/compress-upload";
 
 const categories = [
   ["identification", "Identification"],
@@ -19,6 +20,7 @@ const categories = [
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const maxBytes = 25 * 1024 * 1024;
+const immutableCacheSeconds = "31536000";
 
 function safeFileName(name: string) {
   const extension = name.includes(".") ? `.${name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "")}` : "";
@@ -59,10 +61,12 @@ export function PhotoUploader({
     let uploaded = 0;
 
     try {
-      for (const file of files) {
+      for (const originalFile of files) {
+        setMessage(`Compressing photo ${uploaded + 1} of ${files.length}…`);
+        const file = await compressImageForUpload(originalFile);
         const path = `${organizationId}/${jobId}/originals/${safeFileName(file.name)}`;
         const { error: uploadError } = await supabase.storage.from("job-files").upload(path, file, {
-          cacheControl: "3600",
+          cacheControl: immutableCacheSeconds,
           contentType: file.type,
           upsert: false,
         });
@@ -73,7 +77,7 @@ export function PhotoUploader({
           organization_id: organizationId,
           job_id: jobId,
           category,
-          file_name: file.name,
+          file_name: originalFile.name,
           mime_type: file.type,
           file_size_bytes: file.size,
           storage_path_original: path,
@@ -90,11 +94,12 @@ export function PhotoUploader({
       }
 
       if (inputRef.current) inputRef.current.value = "";
-      setMessage(`${uploaded} photo${uploaded === 1 ? "" : "s"} uploaded securely.`);
+      setMessage(`${uploaded} compressed photo${uploaded === 1 ? "" : "s"} uploaded securely.`);
       router.refresh();
     } catch (error) {
       console.error("Photo upload failed", error);
-      setMessage(`Upload stopped after ${uploaded} successful photo${uploaded === 1 ? "" : "s"}. Please try the remaining files again.`);
+      const reason = error instanceof Error ? error.message : "Unknown upload error.";
+      setMessage(`Upload stopped after ${uploaded} successful photo${uploaded === 1 ? "" : "s"}. ${reason}`);
     } finally {
       setUploading(false);
     }
@@ -104,11 +109,11 @@ export function PhotoUploader({
     <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end">
         <div className="min-w-0 flex-1">
-          <div className="mb-4 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[var(--surface-3)] text-[var(--brand)]"><Camera className="size-4" /></span><div><h2 className="font-semibold">Add evidence photos</h2><p className="text-xs text-[var(--muted)]">Original files stay private in your workshop storage.</p></div></div>
+          <div className="mb-4 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[var(--surface-3)] text-[var(--brand)]"><Camera className="size-4" /></span><div><h2 className="font-semibold">Add evidence photos</h2><p className="text-xs text-[var(--muted)]">Photos are resized and compressed to WebP before private workshop storage.</p></div></div>
           <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" multiple className="block w-full rounded-xl border border-dashed border-[var(--border)] bg-[#091322] p-4 text-sm text-[var(--muted)] file:mr-4 file:rounded-lg file:border-0 file:bg-[var(--surface-3)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white" />
         </div>
         <label className="grid min-w-52 gap-2 text-sm"><span className="text-xs font-medium text-[var(--muted)]">Photo category</span><select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className="rounded-xl border border-[var(--border)] bg-[#091322] px-3.5 py-3 outline-none focus:border-[var(--brand)]">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <button type="button" onClick={uploadSelected} disabled={uploading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-60">{uploading ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{uploading ? "Uploading…" : "Upload photos"}</button>
+        <button type="button" onClick={uploadSelected} disabled={uploading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-60">{uploading ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{uploading ? "Optimising & uploading…" : "Upload photos"}</button>
       </div>
       {message ? <p aria-live="polite" className="mt-4 text-xs text-[var(--muted)]">{message}</p> : null}
       <p className="mt-3 text-[11px] leading-5 text-[var(--muted)]">Capture front, rear, LH, RH, wide damage and close-up evidence. Avoid including unrelated personal information in photos.</p>
