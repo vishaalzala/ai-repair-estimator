@@ -12,6 +12,8 @@ export type PricingLineInput = {
 export type EstimateTotalInput = {
   lineTotalExTax: number;
   categoryCode?: string | null;
+  reportSelected?: boolean;
+  extraSelected?: boolean;
 };
 
 function finite(value: number | undefined) {
@@ -43,19 +45,44 @@ export function calculateLineTotal(input: PricingLineInput) {
   };
 }
 
+function addCategoryTotal(target: Record<string, number>, line: EstimateTotalInput) {
+  const key = line.categoryCode || "uncategorised";
+  target[key] = roundMoney((target[key] ?? 0) + finite(line.lineTotalExTax));
+}
+
 export function calculateEstimateTotals(lines: EstimateTotalInput[], taxRate: number) {
-  const subtotal = roundMoney(lines.reduce((sum, line) => sum + finite(line.lineTotalExTax), 0));
+  const includedLines = lines.filter((line) => !line.reportSelected && !line.extraSelected);
+  const reportOnlyLines = lines.filter((line) => Boolean(line.reportSelected) && !line.extraSelected);
+  const extraLines = lines.filter((line) => Boolean(line.extraSelected));
+
+  const subtotal = roundMoney(includedLines.reduce((sum, line) => sum + finite(line.lineTotalExTax), 0));
+  const reportOnlySubtotal = roundMoney(reportOnlyLines.reduce((sum, line) => sum + finite(line.lineTotalExTax), 0));
+  const extraSubtotal = roundMoney(extraLines.reduce((sum, line) => sum + finite(line.lineTotalExTax), 0));
+  const grossVisibleSubtotal = roundMoney(subtotal + reportOnlySubtotal + extraSubtotal);
+
   const safeTaxRate = Math.max(0, finite(taxRate));
   const tax = roundMoney(subtotal * (safeTaxRate / 100));
   const total = roundMoney(subtotal + tax);
 
-  const categoryTotals = lines.reduce<Record<string, number>>((totals, line) => {
-    const key = line.categoryCode || "uncategorised";
-    totals[key] = roundMoney((totals[key] ?? 0) + finite(line.lineTotalExTax));
-    return totals;
-  }, {});
+  const categoryTotals: Record<string, number> = {};
+  const reportCategoryTotals: Record<string, number> = {};
+  const extraCategoryTotals: Record<string, number> = {};
 
-  return { subtotal, tax, total, categoryTotals };
+  includedLines.forEach((line) => addCategoryTotal(categoryTotals, line));
+  reportOnlyLines.forEach((line) => addCategoryTotal(reportCategoryTotals, line));
+  extraLines.forEach((line) => addCategoryTotal(extraCategoryTotals, line));
+
+  return {
+    subtotal,
+    reportOnlySubtotal,
+    extraSubtotal,
+    grossVisibleSubtotal,
+    tax,
+    total,
+    categoryTotals,
+    reportCategoryTotals,
+    extraCategoryTotals,
+  };
 }
 
 export function parseNumber(value: FormDataEntryValue | null) {

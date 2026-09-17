@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { VehicleIntakeSchema } from "@/lib/ai/tasks/vehicle-intake";
 import type { DamageAnalysis } from "@/lib/ai/tasks/damage-analysis";
 import { generateAndPersistAiEstimate } from "@/lib/estimating/ai-estimate";
+import { syncAutomaticEstimateCharges } from "@/lib/estimating/automatic-charges";
 import { syncAutomaticParkingFee } from "@/lib/estimating/parking-fees";
 import { meterJobAiUsage } from "@/lib/billing/usage";
 
@@ -95,6 +96,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     const estimate = await generateAndPersistAiEstimate(jobId, damageAnalysis);
     await syncAutomaticParkingFee(jobId);
+    await syncAutomaticEstimateCharges(jobId);
     const metering = await meterJobAiUsage({
       supabase,
       organizationId,

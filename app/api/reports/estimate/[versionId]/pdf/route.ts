@@ -21,14 +21,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ver
 
   const { data: version } = await supabase
     .from("estimate_versions")
-    .select("id, organization_id, estimate_id, job_id, version_number, status_snapshot, currency, tax_rate, subtotal_ex_tax, tax_amount, total_inc_tax, category_totals, rate_card_snapshot, created_at")
+    .select("id, organization_id, estimate_id, job_id, version_number, status_snapshot, currency, tax_rate, subtotal_ex_tax, tax_amount, total_inc_tax, category_totals, rate_card_snapshot, pricing_snapshot, created_at")
     .eq("id", versionId)
     .maybeSingle();
   if (!version) return NextResponse.json({ message: "Estimate version not found" }, { status: 404 });
 
   const [jobResult, itemResult, settingsResult, templateResult] = await Promise.all([
     supabase.from("jobs").select("id, job_number, customer_id, vehicle_id, job_reference, repair_type, work_source").eq("organization_id", version.organization_id).eq("id", version.job_id).maybeSingle(),
-    supabase.from("estimate_version_items").select("category_name, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, sort_order").eq("organization_id", version.organization_id).eq("estimate_version_id", version.id).order("sort_order"),
+    supabase.from("estimate_version_items").select("category_name, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, report_selected, blend_selected, extra_selected, sort_order").eq("organization_id", version.organization_id).eq("estimate_version_id", version.id).order("sort_order"),
     supabase.from("workshop_settings").select("trading_name, legal_name, gst_number, email, phone, address_line_1, address_line_2, suburb, city, postcode, estimate_valid_days, estimate_terms").eq("organization_id", version.organization_id).maybeSingle(),
     supabase.from("report_templates").select("id, name, header_text, footer_text").eq("organization_id", version.organization_id).eq("report_type", "insurance_estimate").eq("is_default", true).eq("is_active", true).maybeSingle(),
   ]);
@@ -47,9 +47,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ver
   const settings = settingsResult.data;
   const template = templateResult.data;
   const items = itemResult.data ?? [];
+  const includedItems = items.filter((item) => !item.report_selected && !item.extra_selected);
+  const reportOnlyItems = items.filter((item) => item.report_selected && !item.extra_selected);
+  const extraItems = items.filter((item) => item.extra_selected);
+  const reportOnlySubtotal = reportOnlyItems.reduce((sum, item) => sum + Number(item.line_total_ex_tax ?? 0), 0);
+  const extraSubtotal = extraItems.reduce((sum, item) => sum + Number(item.line_total_ex_tax ?? 0), 0);
   const workshopName = settings?.trading_name || settings?.legal_name || "Repair Workshop";
   const customerName = customer?.business_name || [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || "Customer";
   const vehicleName = [vehicle?.model_year, vehicle?.make, vehicle?.model, vehicle?.variant].filter(Boolean).join(" ") || "Vehicle";
+
+  const operationLines = (source: typeof items, label?: string) => source.flatMap((item, index) => [
+    { text: `${index + 1}. ${item.category_name} | ${[item.side, item.component, item.operation_code].filter(Boolean).join(" ") || "Operation"}${label ? ` | ${label}` : ""}`, bold: true, size: 9 },
+    { text: `${item.description} | Qty ${Number(item.quantity).toFixed(2)} | Labour ${Number(item.labour_hours).toFixed(2)}h @ ${money(Number(item.labour_rate), version.currency)} | Line ${money(Number(item.line_total_ex_tax), version.currency)}${item.blend_selected ? " | Blend" : ""}`, size: 8, indent: 1, gapAfter: 3 },
+  ]);
 
   const lines = [
     ...(template?.header_text ? [{ text: template.header_text, size: 9, gapAfter: 8 }] : []),
@@ -59,19 +69,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ver
     { text: "INSURANCE / REPAIR ESTIMATE", bold: true, size: 14, gapAfter: 8 },
     { text: `Job: ${job.job_number}   Estimate version: ${version.version_number}   Created: ${new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium" }).format(new Date(version.created_at))}`, size: 9, gapAfter: 5 },
     { text: `Customer: ${customerName}   Claim: ${claim?.claim_number || "-"}   Insurer: ${insurer?.name || "-"}`, size: 9 },
+    { text: `Policy: ${claim?.policy_number || "-"}   Assessor: ${claim?.assessor_name || "-"}   Authority: ${claim?.authority_reference || "-"}`, size: 9 },
     { text: `Vehicle: ${vehicleName}   Registration: ${vehicle?.registration || "-"}   VIN: ${vehicle?.vin || "-"}`, size: 9 },
-    { text: `Colour/Paint: ${[vehicle?.colour, vehicle?.paint_code].filter(Boolean).join(" / ") || "-"}   Odometer: ${vehicle?.odometer_km != null ? `${Number(vehicle.odometer_km).toLocaleString("en-NZ")} km` : "-"}`, size: 9 },
-    { text: `Assessor: ${claim?.assessor_name || "-"}   Authority: ${claim?.authority_reference || "-"}   Excess: ${claim?.excess_amount != null ? money(Number(claim.excess_amount), version.currency) : "-"}`, size: 9, gapAfter: 10 },
-    { text: "REPAIR OPERATIONS", bold: true, size: 11, gapAfter: 5 },
-    ...items.flatMap((item, index) => [
-      { text: `${index + 1}. ${item.category_name} | ${[item.side, item.component, item.operation_code].filter(Boolean).join(" ") || "Operation"}`, bold: true, size: 9 },
-      { text: `${item.description} | Qty ${Number(item.quantity).toFixed(2)} | Labour ${Number(item.labour_hours).toFixed(2)}h @ ${money(Number(item.labour_rate), version.currency)} | Line ${money(Number(item.line_total_ex_tax), version.currency)}`, size: 8, indent: 1, gapAfter: 3 },
-    ]),
+    { text: `Colour/Paint: ${[vehicle?.colour, vehicle?.paint_code].filter(Boolean).join(" / ") || "-"}   Odometer: ${vehicle?.odometer_km != null ? `${Number(vehicle.odometer_km).toLocaleString("en-NZ")} km` : "-"}   Excess: ${claim?.excess_amount != null ? money(Number(claim.excess_amount), version.currency) : "-"}`, size: 9, gapAfter: 10 },
+    { text: "CURRENT ESTIMATE OPERATIONS", bold: true, size: 11, gapAfter: 5 },
+    ...operationLines(includedItems),
+    ...(reportOnlyItems.length ? [
+      { text: "REPORT-ONLY ITEMS - PRICE SHOWN, NOT INCLUDED IN CURRENT TOTAL", bold: true, size: 10, gapAfter: 5 },
+      ...operationLines(reportOnlyItems, "REPORT ONLY"),
+      { text: `Report-only subtotal: ${money(reportOnlySubtotal, version.currency)} (excluded from total)`, bold: true, size: 9, gapAfter: 8 },
+    ] : []),
+    ...(extraItems.length ? [
+      { text: "ADDITIONAL / PENDING EXTRAS - NOT INCLUDED IN CURRENT TOTAL", bold: true, size: 10, gapAfter: 5 },
+      ...operationLines(extraItems, "EXTRA"),
+      { text: `Pending extras subtotal: ${money(extraSubtotal, version.currency)} (excluded from total)`, bold: true, size: 9, gapAfter: 8 },
+    ] : []),
     { text: "FINANCIAL SUMMARY", bold: true, size: 11, gapAfter: 5 },
     ...Object.entries((version.category_totals ?? {}) as Record<string, number | string>).map(([category, value]) => ({ text: `${category.toUpperCase()}: ${money(Number(value), version.currency)}`, size: 9, indent: 1 })),
-    { text: `Subtotal: ${money(Number(version.subtotal_ex_tax), version.currency)}`, bold: true, size: 10, gapAfter: 1 },
+    { text: `Included subtotal: ${money(Number(version.subtotal_ex_tax), version.currency)}`, bold: true, size: 10, gapAfter: 1 },
     { text: `GST ${Number(version.tax_rate).toFixed(2)}%: ${money(Number(version.tax_amount), version.currency)}`, size: 10 },
-    { text: `TOTAL: ${money(Number(version.total_inc_tax), version.currency)}`, bold: true, size: 13, gapAfter: 10 },
+    { text: `CURRENT ESTIMATE TOTAL: ${money(Number(version.total_inc_tax), version.currency)}`, bold: true, size: 13, gapAfter: 4 },
+    ...(reportOnlySubtotal ? [{ text: `Report-only value (excluded): ${money(reportOnlySubtotal, version.currency)}`, size: 9 }] : []),
+    ...(extraSubtotal ? [{ text: `Pending extras (excluded): ${money(extraSubtotal, version.currency)}`, size: 9, gapAfter: 10 }] : []),
     ...(claim?.accident_date || claim?.accident_location ? [{ text: `Accident: ${[claim.accident_date, claim.accident_location].filter(Boolean).join(" | ")}`, size: 9, gapAfter: 5 }] : []),
     ...(settings?.estimate_terms ? [{ text: "TERMS", bold: true, size: 10, gapAfter: 3 }, { text: settings.estimate_terms, size: 8 }] : []),
   ];
@@ -80,7 +99,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ver
     title: `${workshopName} - Repair Estimate`,
     subtitle: `${job.job_number} | ${vehicle?.registration || vehicleName} | Version ${version.version_number}`,
     lines,
-    footer: template?.footer_text || `Generated from immutable estimate version ${version.version_number}. Human estimator approval remains required.`,
+    footer: template?.footer_text || `Estimate version ${version.version_number}. Report-only and pending-extra items are displayed separately and excluded from the current estimate total.`,
   });
   const sha256 = createHash("sha256").update(pdf).digest("hex");
 
@@ -127,8 +146,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ver
     registration: vehicle?.registration,
     claim_number: claim?.claim_number,
     insurer: insurer?.name,
-    totals: { subtotal: version.subtotal_ex_tax, tax_rate: version.tax_rate, tax: version.tax_amount, total: version.total_inc_tax },
+    totals: {
+      subtotal: version.subtotal_ex_tax,
+      tax_rate: version.tax_rate,
+      tax: version.tax_amount,
+      total: version.total_inc_tax,
+      report_only: reportOnlySubtotal,
+      pending_extras: extraSubtotal,
+    },
     item_count: items.length,
+    included_item_count: includedItems.length,
+    report_only_item_count: reportOnlyItems.length,
+    extra_item_count: extraItems.length,
   };
 
   const { error: versionInsertError } = await supabase.from("report_versions").insert({

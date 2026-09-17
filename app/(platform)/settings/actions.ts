@@ -3,22 +3,27 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { syncAutomaticEstimateChargesForOpenEstimates } from "@/lib/estimating/automatic-charges";
 import { syncAutomaticParkingFeesForOpenEstimates } from "@/lib/estimating/parking-fees";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+function managementRole(role: string) {
+  return ["owner", "admin", "manager"].includes(role);
+}
+
 export async function updateWorkshopProfile(formData: FormData) {
   const { supabase, organizationId, role } = await requireOrganizationContext();
-  if (!["owner", "admin", "manager"].includes(role)) {
-    redirect("/settings?error=Only%20workshop%20management%20can%20change%20business%20settings");
+  if (!managementRole(role)) {
+    redirect("/settings/workshop?error=Only%20workshop%20management%20can%20change%20business%20settings");
   }
 
   const gstRate = Number(formData.get("gst_rate") ?? 15);
   const validDays = Number(formData.get("estimate_valid_days") ?? 30);
   if (!Number.isFinite(gstRate) || gstRate < 0 || gstRate > 100 || !Number.isInteger(validDays) || validDays < 1 || validDays > 365) {
-    redirect("/settings?error=Please%20check%20the%20GST%20rate%20and%20estimate%20validity");
+    redirect("/settings/workshop?error=Please%20check%20the%20GST%20rate%20and%20estimate%20validity");
   }
 
   const { error } = await supabase
@@ -44,17 +49,17 @@ export async function updateWorkshopProfile(formData: FormData) {
 
   if (error) {
     console.error("Workshop settings update failed", error.code);
-    redirect("/settings?error=Unable%20to%20save%20workshop%20settings");
+    redirect("/settings/workshop?error=Unable%20to%20save%20workshop%20settings");
   }
 
-  revalidatePath("/settings");
-  redirect("/settings?message=Workshop%20settings%20saved");
+  revalidatePath("/settings/workshop");
+  redirect("/settings/workshop?message=Workshop%20settings%20saved");
 }
 
 export async function updateRateCardRate(formData: FormData) {
   const { supabase, organizationId, role } = await requireOrganizationContext();
-  if (!["owner", "admin", "manager"].includes(role)) {
-    redirect("/settings?error=Only%20workshop%20management%20can%20change%20rates");
+  if (!managementRole(role)) {
+    redirect("/settings/workshop?error=Only%20workshop%20management%20can%20change%20rates");
   }
 
   const rateCardId = text(formData, "rate_card_id");
@@ -65,14 +70,14 @@ export async function updateRateCardRate(formData: FormData) {
   const fixedRate = fixedRaw === "" ? null : Number(fixedRaw);
 
   if (!rateCardId || !categoryId || (hourlyRate !== null && (!Number.isFinite(hourlyRate) || hourlyRate < 0)) || (fixedRate !== null && (!Number.isFinite(fixedRate) || fixedRate < 0))) {
-    redirect("/settings?error=Enter%20valid%20non-negative%20rates");
+    redirect("/settings/workshop?error=Enter%20valid%20non-negative%20rates");
   }
 
   const [{ data: rateCard }, { data: category }] = await Promise.all([
     supabase.from("rate_cards").select("id").eq("organization_id", organizationId).eq("id", rateCardId).maybeSingle(),
     supabase.from("estimate_categories").select("id").eq("organization_id", organizationId).eq("id", categoryId).maybeSingle(),
   ]);
-  if (!rateCard || !category) redirect("/settings?error=Invalid%20rate%20card%20selection");
+  if (!rateCard || !category) redirect("/settings/workshop?error=Invalid%20rate%20card%20selection");
 
   const { error } = await supabase.from("rate_card_rates").upsert({
     organization_id: organizationId,
@@ -84,16 +89,59 @@ export async function updateRateCardRate(formData: FormData) {
 
   if (error) {
     console.error("Rate update failed", error.code);
-    redirect("/settings?error=Unable%20to%20save%20that%20rate");
+    redirect("/settings/workshop?error=Unable%20to%20save%20that%20rate");
   }
 
-  revalidatePath("/settings");
-  redirect("/settings?message=Rate%20updated");
+  await syncAutomaticEstimateChargesForOpenEstimates();
+  revalidatePath("/settings/workshop");
+  revalidatePath("/jobs");
+  redirect("/settings/workshop?message=Rate%20updated%20and%20automatic%20charges%20recalculated");
+}
+
+export async function updateAutomaticEstimateChargeSettings(formData: FormData) {
+  const { supabase, organizationId, role } = await requireOrganizationContext();
+  if (!managementRole(role)) {
+    redirect("/settings/workshop?error=Only%20workshop%20management%20can%20change%20automatic%20estimate%20charges");
+  }
+
+  const panelPercent = Number(text(formData, "panel_materials_percent") || 0);
+  const paintSetupAmount = Number(text(formData, "paint_setup_amount") || 0);
+  const environmentalFeeAmount = Number(text(formData, "environmental_fee_amount") || 0);
+
+  if (
+    !Number.isFinite(panelPercent) || panelPercent < 0 || panelPercent > 100 ||
+    !Number.isFinite(paintSetupAmount) || paintSetupAmount < 0 ||
+    !Number.isFinite(environmentalFeeAmount) || environmentalFeeAmount < 0
+  ) {
+    redirect("/settings/workshop?error=Enter%20valid%20automatic%20charge%20values");
+  }
+
+  const { error } = await supabase
+    .from("workshop_settings")
+    .update({
+      panel_materials_enabled: formData.get("panel_materials_enabled") === "on",
+      panel_materials_percent: panelPercent,
+      paint_setup_enabled: formData.get("paint_setup_enabled") === "on",
+      paint_setup_amount: paintSetupAmount,
+      environmental_fee_enabled: formData.get("environmental_fee_enabled") === "on",
+      environmental_fee_amount: environmentalFeeAmount,
+    })
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    console.error("Automatic estimate charge settings update failed", error.code);
+    redirect("/settings/workshop?error=Unable%20to%20save%20automatic%20estimate%20charges");
+  }
+
+  await syncAutomaticEstimateChargesForOpenEstimates();
+  revalidatePath("/settings/workshop");
+  revalidatePath("/jobs");
+  redirect("/settings/workshop?message=Automatic%20estimate%20charges%20saved%20and%20drafts%20recalculated");
 }
 
 export async function updateParkingFeeSettings(formData: FormData) {
   const { supabase, organizationId, role } = await requireOrganizationContext();
-  if (!["owner", "admin", "manager"].includes(role)) {
+  if (!managementRole(role)) {
     redirect("/settings/workshop?error=Only%20workshop%20management%20can%20change%20parking%20fees");
   }
 
