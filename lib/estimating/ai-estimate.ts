@@ -11,6 +11,30 @@ function clean(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function relevanceWords(values: Array<string | null | undefined>) {
+  const ignored = new Set(["the", "and", "with", "from", "rear", "front", "left", "right", "unknown", "private", "job"]);
+  return [...new Set(values
+    .flatMap((value) => (value ?? "").toLowerCase().split(/[^a-z0-9]+/))
+    .filter((word) => word.length >= 3 && !ignored.has(word)))];
+}
+
+function selectRelevantKnowledge(
+  sources: Array<{ id: string; scope: string; title: string; content_text: string | null }>,
+  terms: string[],
+) {
+  return sources
+    .filter((source) => source.content_text)
+    .map((source, index) => {
+      const haystack = `${source.title}\n${source.content_text ?? ""}`.toLowerCase();
+      const score = terms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
+      const trainingBoost = /training case|approved|repeated pattern/i.test(source.title) ? 0.35 : 0;
+      return { source, score: score + trainingBoost, index };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 18)
+    .map(({ source }) => source);
+}
+
 function fallbackLabourHours(operationCode: string) {
   switch (operationCode) {
     case "REPAIR": return 1;
@@ -71,22 +95,27 @@ async function ensurePrimaryEstimate(jobId: string) {
 export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis: DamageAnalysis) {
   const { supabase, organizationId, userId, job, estimate } = await ensurePrimaryEstimate(jobId);
   const model = process.env.AI_ESTIMATE_MODEL?.trim() || process.env.AI_REVIEW_MODEL?.trim() || process.env.AI_DAMAGE_MODEL?.trim();
-  if (!process.env.OPENAI_API_KEY || !model) throw new Error("OpenAI estimate generation is not configured");
+  if (!process.env.OPENAI_API_KEY || !model) throw new Error("AI estimate generation is not configured");
 
   const [vehicleResult, claimResult, categoriesResult, existingItemsResult, knowledgeResult] = await Promise.all([
     job.vehicle_id
       ? supabase.from("vehicles").select("registration, vin, make, model, variant, model_year, body_type, fuel_type, is_ev, is_hybrid, adas_present, colour, paint_code").eq("organization_id", organizationId).eq("id", job.vehicle_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from("claims").select("claim_number, accident_date, accident_location, accident_description, excess_amount").eq("organization_id", organizationId).eq("job_id", jobId).maybeSingle(),
+    supabase.from("claims").select("insurer_id, claim_number, accident_date, accident_location, accident_description, excess_amount").eq("organization_id", organizationId).eq("job_id", jobId).maybeSingle(),
     supabase.from("estimate_categories").select("id, code, name, pricing_basis, sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
     supabase.from("estimate_items").select("id, category_id, description, component, side, operation_code, source_type, human_verified").eq("organization_id", organizationId).eq("estimate_id", estimate.id).order("sort_order").order("created_at"),
-    supabase.from("knowledge_sources").select("id, scope, title, content_text").eq("status", "active").order("created_at", { ascending: false }).limit(15),
+    supabase.from("knowledge_sources").select("id, scope, title, content_text").eq("status", "active").order("created_at", { ascending: false }).limit(60),
   ]);
 
   const vehicle = vehicleResult.data;
   const claim = claimResult.data;
   const categories = categoriesResult.data ?? [];
   if (!categories.length) throw new Error("No estimate categories are configured");
+
+  const insurerResult = claim?.insurer_id
+    ? await supabase.from("insurers").select("name").eq("organization_id", organizationId).eq("id", claim.insurer_id).maybeSingle()
+    : { data: null };
+  const insurerName = clean(insurerResult.data?.name);
 
   const categoryByCode = new Map(categories.map((category) => [category.code, category]));
   const categoryById = new Map(categories.map((category) => [category.id, category]));
@@ -115,6 +144,8 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
   ].join("\n");
 
   const claimContext = [
+    `Work source: ${job.work_source || "unknown"}`,
+    `Insurer: ${insurerName || (job.work_source === "private" ? "Private Job" : "not provided")}`,
     `Claim: ${clean(claim?.claim_number) || "unknown"}`,
     `Accident date/location: ${[claim?.accident_date, claim?.accident_location].filter(Boolean).join(" / ") || "not provided"}`,
     `Estimator / accident note: ${clean(claim?.accident_description) || "not provided"}`,
@@ -137,19 +168,31 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       const rate = rateByCategoryId.get(category.id);
       return `${category.code} = ${category.name}; pricing=${category.pricing_basis}; hourly=${rate?.hourly_rate ?? "TBC"}; fixed=${rate?.fixed_rate ?? "TBC"}`;
     }),
-    "\nInsurance-project estimate pattern learned from workshop examples:",
+    "\nApproved workshop quote pattern:",
     "- One operation/component per line. Never combine multiple R&R items into one description.",
-    "- R&R values historically map to workshop time at the configured labour rate. At $120/hr: 0.1h=$12, 0.2h=$24, 0.25h=$30, 0.4h=$48, 0.5h=$60, 0.75h=$90, 1h=$120, 1.5h=$180, 2h=$240, 3h=$360, 5h=$600.",
-    "- Separate repair lines from paint lines. Paint is one line per painted component; blend is a separate Paint line with Blend selected.",
+    "- Write concise professional quote labels, not explanatory sentences. The category and operation already explain the action; notes hold the rationale.",
+    "- Separate repair lines from paint lines. Paint is one line per painted component; blend is a separate Paint line with Blend selected only when justified.",
     "- List replacement parts individually as TBC/PartsTrader until real supplier pricing exists; never invent parts prices.",
-    "- Trial fit/gap check, scans, decals/livery, towing and specialist outwork are separate operations when relevant.",
-    "- Panel materials, paint materials, consumables and miscellaneous charges belong in their own sections rather than being hidden inside labour.",
+    "- Decal removal/R&R and decal replacement/reinstatement are separate operations when graphics are affected by paint.",
+    "- Trial fit/gap check, scans, towing and specialist outwork are separate operations when relevant.",
+    "- Panel Materials, Paint Setup and Environmental Fee are generated automatically from Workshop Settings. Do not create duplicate AI lines for these automatic charges.",
+    "- Historical Training Case prices/hours are precedent evidence only. Current workshop rates and current supplier/outwork evidence control pricing.",
     "\nExisting manual/human-verified lines (do not duplicate):",
     existingContext,
   ].join("\n");
 
-  const knowledgeContext = (knowledgeResult.data ?? [])
-    .filter((source) => source.content_text)
+  const terms = relevanceWords([
+    insurerName,
+    clean(vehicle?.make),
+    clean(vehicle?.model),
+    clean(vehicle?.variant),
+    damageAnalysis.impactArea,
+    damageAnalysis.severity,
+    damageAnalysis.summary,
+    ...damageAnalysis.findings.flatMap((finding) => [finding.component, finding.observedDamage, finding.suggestedAction, finding.side]),
+  ]);
+  const relevantKnowledge = selectRelevantKnowledge(knowledgeResult.data ?? [], terms);
+  const knowledgeContext = relevantKnowledge
     .map((source) => `K:${source.id} | scope=${source.scope} | ${source.title}\n${clip(source.content_text ?? "")}`)
     .join("\n\n") || "No additional workshop knowledge supplied.";
 
@@ -166,6 +209,8 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       protected_existing_items: protectedItems.length,
       vision_vehicle_confidence: damageAnalysis.vehicleIdentification.confidence,
       estimate_style: "insurance_project_line_by_line",
+      knowledge_sources_selected: relevantKnowledge.map((source) => source.id),
+      insurer_name: insurerName || null,
     },
     created_by: userId,
   }).select("id").single();
@@ -184,7 +229,9 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
 
     const paintCategory = categoryByCode.get("paint");
     const blendCategory = categoryByCode.get("blend");
+    const automaticCategoryCodes = new Set(["panel_materials", "paint_materials"]);
     const rows = result.draft.operations.flatMap((operation, index) => {
+      if (automaticCategoryCodes.has(operation.categoryCode)) return [];
       const isBlend = operation.categoryCode === "blend" || operation.operationCode === "BLEND" || operation.blendSelected;
       const requestedCategory = categoryByCode.get(operation.categoryCode);
       const category = isBlend ? paintCategory : requestedCategory;
@@ -221,7 +268,7 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
         : operation.pricingStatus === "manual_tbc"
           ? "Amount TBC — estimator/workshop input required before approval."
           : operation.pricingStatus === "ai_estimate"
-            ? "AI preliminary amount based on workshop/historical estimating context — confirm before issue."
+            ? "Preliminary amount from configured/historical estimating context — confirm before issue."
             : operation.pricingStatus === "included"
               ? "Included operation; no separate charge generated."
               : null;
@@ -248,8 +295,9 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
         source_ref: run.id,
         ai_confidence: operation.confidence,
         human_verified: false,
-        report_selected: operation.reportSelected,
+        report_selected: false,
         blend_selected: isBlend,
+        extra_selected: false,
         notes,
         sort_order: category.sort_order * 100 + index,
         created_by: userId,
