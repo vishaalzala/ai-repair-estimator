@@ -81,7 +81,7 @@ export function estimateModelForDamage(input: {
   const veryLowIdentity = Number(input.vehicleConfidence ?? 1) < 0.45;
   const manyFindings = Number(input.findingCount ?? 0) >= 18;
   const manyUncertain = Number(input.lowConfidenceFindings ?? 0) >= 5;
-  const majorStructural = input.severity === "major" && Boolean(input.structuralFinding);
+  const majorStructural = Boolean(input.structuralFinding) && (input.severity === "major" || Number(input.findingCount ?? 0) >= 8);
 
   if (veryLowIdentity || manyFindings || manyUncertain || majorStructural) {
     return {
