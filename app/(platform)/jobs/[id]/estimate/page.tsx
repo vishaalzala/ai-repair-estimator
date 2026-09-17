@@ -20,17 +20,26 @@ import {
   UserRound,
 } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { syncAutomaticEstimateCharges } from "@/lib/estimating/automatic-charges";
+import { syncAutomaticParkingFee } from "@/lib/estimating/parking-fees";
 import { calculateEstimateTotals } from "@/lib/estimating/pricing-engine";
 import {
+  AutoSaveForm,
+  AutosaveLink,
+  EstimateSaveStatus,
+  PrintEstimateButton,
+} from "@/components/estimates/estimate-autosave";
+import {
   addEstimateItem,
+  createPrintableEstimateVersion,
   deleteEstimateItem,
   saveEstimateVersion,
   updateEstimateContext,
   updateEstimateItem,
 } from "./actions";
 
-const inputClass = "min-w-0 rounded-lg border border-[var(--border)] bg-[#091322] px-2.5 py-2 text-xs text-white outline-none transition focus:border-[var(--brand)]";
-const rowInputClass = "min-w-0 rounded-lg border border-[var(--border)] bg-[#091322] px-2.5 py-2 text-xs text-white outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)]/20";
+const inputClass = "min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500";
+const rowInputClass = "min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500";
 
 function money(value: number, currency = "NZD") {
   return new Intl.NumberFormat("en-NZ", { style: "currency", currency }).format(value);
@@ -84,6 +93,11 @@ export default async function EstimatePage({
   const partsRequest = partsRequestResult.data?.[0] ?? null;
   const aiChecks = aiReviewResult.data ?? [];
 
+  if (estimate) {
+    await syncAutomaticParkingFee(job.id);
+    await syncAutomaticEstimateCharges(job.id);
+  }
+
   const [{ data: insurer }, { data: rateCard }] = await Promise.all([
     claim?.insurer_id ? supabase.from("insurers").select("name").eq("organization_id", organizationId).eq("id", claim.insurer_id).maybeSingle() : Promise.resolve({ data: null }),
     estimate?.rate_card_id ? supabase.from("rate_cards").select("name").eq("organization_id", organizationId).eq("id", estimate.rate_card_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -92,7 +106,7 @@ export default async function EstimatePage({
   const itemResult = estimate
     ? await supabase
         .from("estimate_items")
-        .select("id, category_id, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, source_type, ai_confidence, human_verified, report_selected, blend_selected, notes, created_at")
+        .select("id, category_id, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, line_total_ex_tax, source_type, source_ref, ai_confidence, human_verified, report_selected, blend_selected, extra_selected, notes, created_at")
         .eq("organization_id", organizationId)
         .eq("estimate_id", estimate.id)
         .order("sort_order")
@@ -102,7 +116,12 @@ export default async function EstimatePage({
 
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const totals = calculateEstimateTotals(
-    items.map((item) => ({ lineTotalExTax: Number(item.line_total_ex_tax), categoryCode: categoryById.get(item.category_id)?.code })),
+    items.map((item) => ({
+      lineTotalExTax: Number(item.line_total_ex_tax),
+      categoryCode: categoryById.get(item.category_id)?.code,
+      reportSelected: Boolean(item.report_selected),
+      extraSelected: Boolean(item.extra_selected),
+    })),
     Number(estimate?.tax_rate ?? 15),
   );
   const currency = estimate?.currency ?? "NZD";
@@ -113,19 +132,20 @@ export default async function EstimatePage({
   const deleteAction = deleteEstimateItem.bind(null, job.id);
   const contextAction = updateEstimateContext.bind(null, job.id);
   const saveVersionAction = saveEstimateVersion.bind(null, job.id);
+  const printAction = createPrintableEstimateVersion.bind(null, job.id);
 
   const vehicleTitle = [vehicle?.model_year, vehicle?.make, vehicle?.model, vehicle?.variant].filter(Boolean).join(" ") || "Vehicle details pending";
   const customerName = customer?.business_name || [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || "Customer pending";
   const unresolvedAi = aiChecks.filter((check) => !check.resolution && ["review", "blocking"].includes(check.severity)).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden bg-[#07101c] text-white">
-      <header className="shrink-0 border-b border-[var(--border)] bg-[#091322]">
+    <div className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden bg-[#f6f8fb] text-slate-950">
+      <header className="shrink-0 border-b border-slate-200 bg-white">
         <div className="flex min-h-16 items-center gap-3 px-3 sm:px-5">
-          <Link href={`/jobs/${job.id}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-white" aria-label="Back to job"><ArrowLeft className="size-4" /></Link>
+          <AutosaveLink href={`/jobs/${job.id}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900" ariaLabel="Back to job"><ArrowLeft className="size-4" /></AutosaveLink>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]"><span className="font-semibold text-[var(--brand)]">{job.job_number}</span><span>•</span><span>{vehicle?.registration || "Rego pending"}</span><span>•</span><span>{claim?.claim_number || "Claim pending"}</span></div>
-            <div className="mt-0.5 flex min-w-0 items-center gap-2"><h1 className="truncate text-base font-semibold sm:text-lg">{vehicleTitle}</h1><span className="hidden rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] text-[var(--muted)] sm:inline">{statusLabel(job.status)}</span></div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500"><span className="font-semibold text-emerald-600">{job.job_number}</span><span>•</span><span>{vehicle?.registration || "Rego pending"}</span><span>•</span><span>{claim?.claim_number || "Claim pending"}</span></div>
+            <div className="mt-0.5 flex min-w-0 items-center gap-2"><h1 className="truncate text-base font-semibold sm:text-lg">{vehicleTitle}</h1><span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-500 sm:inline">{statusLabel(job.status)}</span></div>
           </div>
 
           <nav className="hidden items-center gap-1 xl:flex">
@@ -136,23 +156,25 @@ export default async function EstimatePage({
             <WorkspaceLink href={`/jobs/${job.id}/history`} icon={History} label="History" />
           </nav>
 
-          {estimate && items.length > 0 ? <form action={saveVersionAction}><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)]"><Save className="size-4" /><span className="hidden sm:inline">Save version</span></button></form> : null}
+          <div className="hidden md:block"><EstimateSaveStatus /></div>
+          {estimate && items.length > 0 ? <PrintEstimateButton action={printAction} /> : null}
+          {estimate && items.length > 0 ? <form action={saveVersionAction}><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-400"><Save className="size-4" /><span className="hidden sm:inline">Save version</span></button></form> : null}
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto border-t border-[var(--border)]/70 px-3 py-2 text-xs sm:px-5">
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-2.5 py-1.5 text-[var(--muted)]"><UserRound className="size-3.5" /> {customerName}</span>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-2.5 py-1.5 text-[var(--muted)]"><ShieldCheck className="size-3.5" /> {insurer?.name || "Insurer pending"}</span>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-2.5 py-1.5 text-[var(--muted)]"><CircleDollarSign className="size-3.5" /> {rateCard?.name || "Default workshop rates"}</span>
-          <span className="ml-auto hidden shrink-0 text-[11px] text-[var(--muted)] lg:inline">Report can be selected on every operation. Blend is available only in Paint.</span>
+        <div className="flex items-center gap-2 overflow-x-auto border-t border-slate-100 px-3 py-2 text-xs sm:px-5">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-slate-500"><UserRound className="size-3.5" /> {customerName}</span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-slate-500"><ShieldCheck className="size-3.5" /> {insurer?.name || "Insurer pending"}</span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-slate-500"><CircleDollarSign className="size-3.5" /> {rateCard?.name || "Default workshop rates"}</span>
+          <span className="ml-auto hidden shrink-0 text-[11px] text-slate-500 lg:inline">Extra and Report prices stay visible but are excluded from the current total.</span>
         </div>
       </header>
 
-      {query.error ? <div className="shrink-0 border-b border-red-400/30 bg-red-400/10 px-5 py-2 text-xs text-red-100">{query.error}</div> : null}
-      {query.message ? <div className="shrink-0 border-b border-[var(--brand)]/30 bg-[rgba(88,211,178,0.08)] px-5 py-2 text-xs text-[var(--brand)]">{query.message}</div> : null}
+      {query.error ? <div className="shrink-0 border-b border-red-200 bg-red-50 px-5 py-2 text-xs text-red-700">{query.error}</div> : null}
+      {query.message ? <div className="shrink-0 border-b border-emerald-200 bg-emerald-50 px-5 py-2 text-xs text-emerald-700">{query.message}</div> : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto xl:grid xl:grid-cols-[190px_minmax(760px,1fr)_330px] xl:overflow-hidden">
-        <aside className="border-b border-[var(--border)] bg-[#091322] p-3 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-r">
-          <div className="mb-2 flex items-center justify-between px-2 py-1"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Estimate sections</span><span className="rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-[10px]">{items.length}</span></div>
+      <div className="min-h-0 flex-1 overflow-y-auto xl:grid xl:grid-cols-[190px_minmax(820px,1fr)_330px] xl:overflow-hidden">
+        <aside className="border-b border-slate-200 bg-white p-3 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-r">
+          <div className="mb-2 flex items-center justify-between px-2 py-1"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Estimate sections</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">{items.length}</span></div>
           <div className="flex gap-2 overflow-x-auto xl:block xl:space-y-1 xl:overflow-visible">
             {displayCategories.map((category) => (
               <CategoryJump
@@ -165,8 +187,8 @@ export default async function EstimatePage({
               />
             ))}
           </div>
-          <div className="mt-4 hidden border-t border-[var(--border)] pt-4 xl:block">
-            <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Job shortcuts</p>
+          <div className="mt-4 hidden border-t border-slate-200 pt-4 xl:block">
+            <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Job shortcuts</p>
             <div className="mt-2 space-y-1">
               <SmallLink href={`/jobs/${job.id}`} label="Job overview" />
               <SmallLink href={`/jobs/${job.id}/notes`} label="Notes" />
@@ -175,10 +197,10 @@ export default async function EstimatePage({
           </div>
         </aside>
 
-        <main className="min-w-0 bg-[#07101c] xl:min-h-0 xl:overflow-y-auto">
-          <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[#091322]/95 px-4 py-3 backdrop-blur">
-            <div><h2 className="text-sm font-semibold">Repair operations</h2><p className="text-[10px] text-[var(--muted)]">Type directly into each section. Report stays selectable; Paint also includes Blend.</p></div>
-            <div className="text-right"><div className="text-[10px] text-[var(--muted)]">Estimate total</div><div className="font-semibold tabular-nums text-[var(--brand)]">{money(totals.total, currency)}</div></div>
+        <main className="min-w-0 bg-[#f6f8fb] xl:min-h-0 xl:overflow-y-auto">
+          <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+            <div><h2 className="text-sm font-semibold">Repair operations</h2><p className="text-[10px] text-slate-500">Changes autosave. Extra and Report-only lines are shown separately from the current total.</p></div>
+            <div className="text-right"><div className="text-[10px] text-slate-500">Current estimate total</div><div className="font-semibold tabular-nums text-emerald-600">{money(totals.total, currency)}</div></div>
           </div>
 
           <div className="space-y-3 p-3 sm:p-4">
@@ -188,54 +210,61 @@ export default async function EstimatePage({
               const isFixed = category.pricing_basis === "fixed";
               const isPaint = category.code === "paint";
               const rowGridClass = isPaint
-                ? "lg:grid-cols-[minmax(360px,1fr)_78px_64px_64px_72px_92px_100px_72px]"
-                : "lg:grid-cols-[minmax(420px,1fr)_78px_64px_72px_92px_100px_72px]";
+                ? "lg:grid-cols-[minmax(330px,1fr)_74px_58px_62px_58px_72px_86px_96px_44px]"
+                : "lg:grid-cols-[minmax(350px,1fr)_74px_58px_62px_72px_86px_96px_44px]";
 
               return (
-                <section id={`category-${category.code}`} key={category.id} className="scroll-mt-16 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm shadow-black/10">
-                  <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-3 py-3 sm:px-4">
-                    <div className="flex min-w-0 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--surface-3)] text-[var(--brand)]"><ClipboardList className="size-4" /></span><div className="min-w-0"><h3 className="truncate text-base font-semibold text-white">{category.name}</h3><p className="text-[9px] uppercase tracking-[0.13em] text-[var(--muted)]">{category.pricing_basis} pricing · {categoryItems.length} line{categoryItems.length === 1 ? "" : "s"}</p></div></div>
-                    <span className="shrink-0 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold tabular-nums text-[var(--brand)]">{money(categoryTotal, currency)}</span>
+                <section id={`category-${category.code}`} key={category.id} className="scroll-mt-16 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-3 py-3 sm:px-4">
+                    <div className="flex min-w-0 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><ClipboardList className="size-4" /></span><div className="min-w-0"><h3 className="truncate text-base font-semibold text-slate-950">{category.name}</h3><p className="text-[9px] uppercase tracking-[0.13em] text-slate-500">{category.pricing_basis} pricing · {categoryItems.length} line{categoryItems.length === 1 ? "" : "s"}</p></div></div>
+                    <span className="shrink-0 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-semibold tabular-nums text-emerald-600">{money(categoryTotal, currency)}</span>
                   </div>
 
-                  <div className={`hidden gap-2 border-b border-[var(--border)] bg-[#0a1423] px-3 py-2 text-[9px] font-medium uppercase tracking-wide text-[var(--muted)] lg:grid ${rowGridClass}`}>
-                    <span>Description</span><span>Side</span><span className="text-center">Report</span>{isPaint ? <span className="text-center">Blend</span> : null}<span className="text-right">Hours</span><span className="text-right">{isFixed ? "Fixed $" : "Rate $"}</span><span className="text-right">Total</span><span />
+                  <div className={`hidden gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[9px] font-medium uppercase tracking-wide text-slate-500 lg:grid ${rowGridClass}`}>
+                    <span>Description</span><span>Side</span><span className="text-center text-amber-600">Extra</span><span className="text-center">Report</span>{isPaint ? <span className="text-center">Blend</span> : null}<span className="text-right">Hours</span><span className="text-right">{isFixed ? "Fixed $" : "Rate $"}</span><span className="text-right">Price</span><span />
                   </div>
 
-                  <div className="divide-y divide-[var(--border)]/70">
-                    {categoryItems.map((item) => (
-                      <form action={updateAction} key={item.id} className={`${item.source_type === "ai" && !item.human_verified ? "bg-amber-300/[0.05]" : "bg-[var(--surface)]"} px-3 py-2.5`}>
-                        <input type="hidden" name="item_id" value={item.id} />
-                        <input type="hidden" name="category_id" value={category.id} />
-                        <input type="hidden" name="quantity" value={Number(item.quantity)} />
-                        <input type="hidden" name="operation_code" value={item.operation_code ?? ""} />
-                        <input type="hidden" name="part_cost" value={Number(item.part_cost)} />
-                        <input type="hidden" name="markup_percent" value={Number(item.markup_percent)} />
-                        <input type="hidden" name="freight_amount" value={Number(item.freight_amount)} />
-                        <input type="hidden" name="adjustment_amount" value={Number(item.adjustment_amount)} />
-                        <input type="hidden" name="notes" value={item.notes ?? ""} />
-                        {isFixed ? <input type="hidden" name="labour_rate" value={Number(item.labour_rate)} /> : <input type="hidden" name="fixed_amount" value={Number(item.fixed_amount)} />}
+                  <div className="divide-y divide-slate-100">
+                    {categoryItems.map((item) => {
+                      const isAutomatic = item.source_type === "rule" && (String(item.source_ref || "").startsWith("auto:") || item.source_ref === "parking_fee_daily");
+                      const rowTone = item.extra_selected ? "bg-amber-50" : item.report_selected ? "bg-sky-50" : item.source_type === "ai" && !item.human_verified ? "bg-amber-50/40" : "bg-white";
+                      const rowFields = (
+                        <>
+                          <input type="hidden" name="item_id" value={item.id} />
+                          <input type="hidden" name="category_id" value={category.id} />
+                          <input type="hidden" name="quantity" value={Number(item.quantity)} />
+                          <input type="hidden" name="operation_code" value={item.operation_code ?? ""} />
+                          <input type="hidden" name="part_cost" value={Number(item.part_cost)} />
+                          <input type="hidden" name="markup_percent" value={Number(item.markup_percent)} />
+                          <input type="hidden" name="freight_amount" value={Number(item.freight_amount)} />
+                          <input type="hidden" name="adjustment_amount" value={Number(item.adjustment_amount)} />
+                          <input type="hidden" name="notes" value={item.notes ?? ""} />
+                          {isFixed ? <input type="hidden" name="labour_rate" value={Number(item.labour_rate)} /> : <input type="hidden" name="fixed_amount" value={Number(item.fixed_amount)} />}
 
-                        <div className={`grid gap-2 lg:items-center ${rowGridClass}`}>
-                          <input name="description" required defaultValue={item.description} className={rowInputClass} placeholder="Description" />
-                          <select name="side" defaultValue={item.side ?? ""} className={rowInputClass}><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
-                          <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="report_selected" type="checkbox" defaultChecked={Boolean(item.report_selected)} className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Report</span></label>
-                          {isPaint ? <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="blend_selected" type="checkbox" defaultChecked={Boolean(item.blend_selected)} className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Blend</span></label> : null}
-                          <input name="labour_hours" type="number" min="0" step="0.05" defaultValue={Number(item.labour_hours)} className={`${rowInputClass} text-right tabular-nums`} />
-                          {isFixed ? <input name="fixed_amount" type="number" step="0.01" defaultValue={Number(item.fixed_amount)} className={`${rowInputClass} text-right tabular-nums`} /> : <input name="labour_rate" type="number" min="0" step="0.01" defaultValue={Number(item.labour_rate)} className={`${rowInputClass} text-right tabular-nums`} />}
-                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-right text-xs font-semibold tabular-nums text-white">{money(Number(item.line_total_ex_tax), currency)}</div>
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button type="submit" title="Save line" className="grid size-8 place-items-center rounded-lg border border-[var(--brand)]/25 bg-[rgba(88,211,178,0.08)] text-[var(--brand)] transition hover:bg-[rgba(88,211,178,0.16)]"><Save className="size-3.5" /></button>
-                            <button type="submit" formAction={deleteAction} title="Delete line" className="grid size-8 place-items-center rounded-lg border border-red-400/20 bg-red-400/5 text-red-200 transition hover:bg-red-400/10"><Trash2 className="size-3.5" /></button>
+                          <div className={`grid gap-2 lg:items-center ${rowGridClass}`}>
+                            <input name="description" required defaultValue={item.description} disabled={isAutomatic} className={rowInputClass} placeholder="Description" />
+                            <select name="side" defaultValue={item.side ?? ""} disabled={isAutomatic} className={rowInputClass}><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
+                            <label className="flex items-center justify-start gap-2 text-[10px] text-slate-500 lg:justify-center"><input name="extra_selected" type="checkbox" defaultChecked={Boolean(item.extra_selected)} disabled={isAutomatic} className="size-4 accent-orange-500" /><span className="lg:hidden">Extra</span></label>
+                            <label className="flex items-center justify-start gap-2 text-[10px] text-slate-500 lg:justify-center"><input name="report_selected" type="checkbox" defaultChecked={Boolean(item.report_selected)} disabled={isAutomatic} className="size-4 accent-emerald-500" /><span className="lg:hidden">Report</span></label>
+                            {isPaint ? <label className="flex items-center justify-start gap-2 text-[10px] text-slate-500 lg:justify-center"><input name="blend_selected" type="checkbox" defaultChecked={Boolean(item.blend_selected)} disabled={isAutomatic} className="size-4 accent-emerald-500" /><span className="lg:hidden">Blend</span></label> : null}
+                            <input name="labour_hours" type="number" min="0" step="0.05" defaultValue={Number(item.labour_hours)} disabled={isAutomatic} className={`${rowInputClass} text-right tabular-nums`} />
+                            {isFixed ? <input name="fixed_amount" type="number" step="0.01" defaultValue={Number(item.fixed_amount)} disabled={isAutomatic} className={`${rowInputClass} text-right tabular-nums`} /> : <input name="labour_rate" type="number" min="0" step="0.01" defaultValue={Number(item.labour_rate)} disabled={isAutomatic} className={`${rowInputClass} text-right tabular-nums`} />}
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-right text-xs font-semibold tabular-nums text-slate-900">{money(Number(item.line_total_ex_tax), currency)}</div>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isAutomatic ? <button type="submit" formAction={deleteAction} data-native-submit="true" title="Delete line" className="grid size-8 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-500 transition hover:bg-red-100"><Trash2 className="size-3.5" /></button> : <span className="grid size-8 place-items-center rounded-lg bg-emerald-50 text-[9px] font-semibold text-emerald-700">AUTO</span>}
+                            </div>
                           </div>
-                        </div>
 
-                        {item.source_type !== "manual" ? <div className="mt-2 flex items-center gap-2 text-[9px] text-amber-200"><Sparkles className="size-3" /><span>AI suggestion{item.ai_confidence != null ? ` · ${Math.round(Number(item.ai_confidence) * 100)}% confidence` : ""}. Estimator review required.</span></div> : null}
-                      </form>
-                    ))}
+                          {item.extra_selected ? <div className="mt-2 text-[10px] font-semibold text-amber-700">EXTRA · price shown but excluded from the current estimate total.</div> : item.report_selected ? <div className="mt-2 text-[10px] font-semibold text-sky-700">REPORT ONLY · price shown but excluded from the current estimate total.</div> : null}
+                          {isAutomatic ? <div className="mt-2 text-[10px] text-emerald-700">Automatic workshop charge · controlled in Settings → Workshop.</div> : item.source_type !== "manual" ? <div className="mt-2 flex items-center gap-2 text-[9px] text-amber-700"><Sparkles className="size-3" /><span>AI suggestion{item.ai_confidence != null ? ` · ${Math.round(Number(item.ai_confidence) * 100)}% confidence` : ""}. Estimator review required.</span></div> : null}
+                        </>
+                      );
+
+                      return isAutomatic ? <div key={item.id} className={`${rowTone} px-3 py-2.5`}>{rowFields}</div> : <AutoSaveForm key={item.id} action={updateAction} className={`${rowTone} px-3 py-2.5`}>{rowFields}</AutoSaveForm>;
+                    })}
                   </div>
 
-                  <form action={addAction} className="border-t border-[var(--border)] bg-[#0a1423] px-3 py-3">
+                  <form action={addAction} className="border-t border-slate-200 bg-slate-50 px-3 py-3">
                     <input type="hidden" name="category_id" value={category.id} />
                     <input type="hidden" name="quantity" value="1" />
                     <input type="hidden" name="operation_code" value="" />
@@ -247,41 +276,48 @@ export default async function EstimatePage({
                     <div className={`grid gap-2 lg:items-center ${rowGridClass}`}>
                       <input name="description" required className={rowInputClass} placeholder={`Add ${category.name.toLowerCase()} operation…`} />
                       <select name="side" className={rowInputClass} defaultValue=""><option value="">—</option><option value="LH">LH</option><option value="RH">RH</option><option value="FRONT">Front</option><option value="REAR">Rear</option><option value="CENTRE">Centre</option><option value="NA">N/A</option></select>
-                      <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="report_selected" type="checkbox" className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Report</span></label>
-                      {isPaint ? <label className="flex items-center justify-start gap-2 text-[10px] text-[var(--muted)] lg:justify-center"><input name="blend_selected" type="checkbox" className="size-3.5 accent-[var(--brand)]" /><span className="lg:hidden">Blend</span></label> : null}
+                      <label className="flex items-center justify-start gap-2 text-[10px] text-slate-500 lg:justify-center"><input name="extra_selected" type="checkbox" className="size-4 accent-orange-500" /><span className="lg:hidden">Extra</span></label>
+                      <label className="flex items-center justify-start gap-2 text-[10px] text-slate-500 lg:justify-center"><input name="report_selected" type="checkbox" className="size-4 accent-emerald-500" /><span className="lg:hidden">Report</span></label>
+                      {isPaint ? <label className="flex items-center justify-start gap-2 text-[10px] text-slate-500 lg:justify-center"><input name="blend_selected" type="checkbox" className="size-4 accent-emerald-500" /><span className="lg:hidden">Blend</span></label> : null}
                       <input name="labour_hours" type="number" min="0" step="0.05" className={`${rowInputClass} text-right`} placeholder="0" />
                       {isFixed ? <input name="fixed_amount" type="number" step="0.01" className={`${rowInputClass} text-right`} placeholder="0.00" /> : <input name="labour_rate" type="number" min="0" step="0.01" className={`${rowInputClass} text-right`} placeholder="Rate" />}
-                      <span className="hidden rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-right text-xs text-[var(--muted)] lg:block">—</span>
-                      <button type="submit" title={`Add ${category.name} line`} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-[var(--brand)] px-2 text-[10px] font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)]"><Plus className="size-3.5" /><span className="lg:hidden">Add</span></button>
+                      <span className="hidden rounded-lg border border-slate-200 bg-white px-2 py-2 text-right text-xs text-slate-400 lg:block">—</span>
+                      <button type="submit" title={`Add ${category.name} line`} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-emerald-500 px-2 text-[10px] font-semibold text-emerald-950 transition hover:bg-emerald-400"><Plus className="size-3.5" /><span className="lg:hidden">Add</span></button>
                     </div>
                   </form>
 
-                  <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs text-[var(--muted)]"><span>{category.name} Total:</span><strong className="text-sm tabular-nums text-white">{money(categoryTotal, currency)}</strong></div>
+                  <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-500"><span>{category.name} included total:</span><strong className="text-sm tabular-nums text-slate-950">{money(categoryTotal, currency)}</strong></div>
                 </section>
               );
             })}
 
-            {displayCategories.length === 0 ? <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">No estimate categories are configured for this workshop.</div> : null}
+            {displayCategories.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">No estimate categories are configured for this workshop.</div> : null}
           </div>
         </main>
 
-        <aside className="border-t border-[var(--border)] bg-[#091322] p-3 xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0">
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="mb-3 flex items-center gap-2"><ReceiptText className="size-4 text-[var(--brand)]" /><h2 className="text-sm font-semibold">Estimate totals</h2></div>
+        <aside className="border-t border-slate-200 bg-white p-3 xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2"><ReceiptText className="size-4 text-emerald-600" /><h2 className="text-sm font-semibold">Estimate totals</h2></div>
             <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1 text-xs">
               {displayCategories.map((category) => {
                 const amount = totals.categoryTotals[category.code] ?? 0;
                 if (!amount) return null;
-                return <div key={category.id} className="flex items-center justify-between gap-3"><span className="truncate text-[var(--muted)]">{category.name}</span><span className="tabular-nums">{money(amount, currency)}</span></div>;
+                return <div key={category.id} className="flex items-center justify-between gap-3"><span className="truncate text-slate-500">{category.name}</span><span className="tabular-nums">{money(amount, currency)}</span></div>;
               })}
-              {items.length === 0 ? <p className="text-[var(--muted)]">No priced operations yet.</p> : null}
+              {items.length === 0 ? <p className="text-slate-500">No priced operations yet.</p> : null}
             </div>
-            <div className="mt-4 space-y-2 border-t border-[var(--border)] pt-3 text-xs"><div className="flex justify-between text-[var(--muted)]"><span>Subtotal</span><span className="tabular-nums">{money(totals.subtotal, currency)}</span></div><div className="flex justify-between text-[var(--muted)]"><span>GST {Number(estimate?.tax_rate ?? 15).toFixed(0)}%</span><span className="tabular-nums">{money(totals.tax, currency)}</span></div><div className="flex items-end justify-between border-t border-[var(--border)] pt-3"><span className="font-semibold">Total</span><span className="text-2xl font-semibold tabular-nums">{money(totals.total, currency)}</span></div></div>
+            <div className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-xs">
+              <div className="flex justify-between text-slate-500"><span>Included subtotal</span><span className="tabular-nums">{money(totals.subtotal, currency)}</span></div>
+              {totals.reportOnlySubtotal > 0 ? <div className="flex justify-between rounded-lg bg-sky-50 px-2 py-1.5 text-sky-700"><span>Report only · excluded</span><span className="tabular-nums">{money(totals.reportOnlySubtotal, currency)}</span></div> : null}
+              {totals.extraSubtotal > 0 ? <div className="flex justify-between rounded-lg bg-amber-50 px-2 py-1.5 font-semibold text-amber-700"><span>Pending extras · excluded</span><span className="tabular-nums">{money(totals.extraSubtotal, currency)}</span></div> : null}
+              <div className="flex justify-between text-slate-500"><span>GST {Number(estimate?.tax_rate ?? 15).toFixed(0)}%</span><span className="tabular-nums">{money(totals.tax, currency)}</span></div>
+              <div className="flex items-end justify-between border-t border-slate-200 pt-3"><span className="font-semibold">Current total</span><span className="text-2xl font-semibold tabular-nums">{money(totals.total, currency)}</span></div>
+            </div>
           </section>
 
-          <details className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]" open={!vehicle?.make || !customer || !claim?.claim_number}>
-            <summary className="flex cursor-pointer list-none items-center justify-between p-4"><span className="flex items-center gap-2 text-sm font-semibold"><Settings2 className="size-4 text-[var(--brand)]" /> Vehicle, customer & claim</span><ChevronRight className="size-4 text-[var(--muted)]" /></summary>
-            <form action={contextAction} className="grid gap-3 border-t border-[var(--border)] p-4">
+          <details className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm" open={!vehicle?.make || !customer || !claim?.claim_number}>
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4"><span className="flex items-center gap-2 text-sm font-semibold"><Settings2 className="size-4 text-emerald-600" /> Vehicle, customer & claim</span><ChevronRight className="size-4 text-slate-400" /></summary>
+            <AutoSaveForm action={contextAction} className="grid gap-3 border-t border-slate-200 p-4" debounceMs={900}>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Registration"><input name="registration" defaultValue={vehicle?.registration ?? ""} className={inputClass} /></Field>
                 <Field label="VIN"><input name="vin" defaultValue={vehicle?.vin ?? ""} className={inputClass} /></Field>
@@ -296,17 +332,16 @@ export default async function EstimatePage({
                 <Field label="Fuel"><input name="fuel_type" defaultValue={vehicle?.fuel_type ?? ""} className={inputClass} /></Field>
                 <Field label="ADAS"><select name="adas_present" defaultValue={vehicle?.adas_present === true ? "true" : vehicle?.adas_present === false ? "false" : ""} className={inputClass}><option value="">Unknown</option><option value="true">Yes</option><option value="false">No</option></select></Field>
               </div>
-              <div className="flex gap-4 text-[10px] text-[var(--muted)]"><label className="flex items-center gap-1.5"><input type="checkbox" name="is_ev" defaultChecked={Boolean(vehicle?.is_ev)} className="accent-[var(--brand)]" /> EV</label><label className="flex items-center gap-1.5"><input type="checkbox" name="is_hybrid" defaultChecked={Boolean(vehicle?.is_hybrid)} className="accent-[var(--brand)]" /> Hybrid</label></div>
+              <div className="flex gap-4 text-[10px] text-slate-500"><label className="flex items-center gap-1.5"><input type="checkbox" name="is_ev" defaultChecked={Boolean(vehicle?.is_ev)} className="accent-emerald-500" /> EV</label><label className="flex items-center gap-1.5"><input type="checkbox" name="is_hybrid" defaultChecked={Boolean(vehicle?.is_hybrid)} className="accent-emerald-500" /> Hybrid</label></div>
 
-              <div className="border-t border-[var(--border)] pt-3"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Customer</div><div className="grid grid-cols-2 gap-2"><input name="customer_first_name" defaultValue={customer?.first_name ?? ""} placeholder="First name" className={inputClass} /><input name="customer_last_name" defaultValue={customer?.last_name ?? ""} placeholder="Last name" className={inputClass} /><input name="customer_email" defaultValue={customer?.email ?? ""} placeholder="Email" className={inputClass} /><input name="customer_phone" defaultValue={customer?.phone ?? ""} placeholder="Phone" className={inputClass} /></div></div>
+              <div className="border-t border-slate-200 pt-3"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer</div><div className="grid grid-cols-2 gap-2"><input name="customer_first_name" defaultValue={customer?.first_name ?? ""} placeholder="First name" className={inputClass} /><input name="customer_last_name" defaultValue={customer?.last_name ?? ""} placeholder="Last name" className={inputClass} /><input name="customer_email" defaultValue={customer?.email ?? ""} placeholder="Email" className={inputClass} /><input name="customer_phone" defaultValue={customer?.phone ?? ""} placeholder="Phone" className={inputClass} /></div></div>
 
-              <div className="border-t border-[var(--border)] pt-3"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Insurance / job</div><div className="grid grid-cols-2 gap-2"><input name="insurer_name" defaultValue={insurer?.name ?? ""} placeholder="Insurer" className={inputClass} /><input name="claim_number" defaultValue={claim?.claim_number ?? ""} placeholder="Claim #" className={inputClass} /><input name="policy_number" defaultValue={claim?.policy_number ?? ""} placeholder="Policy #" className={inputClass} /><input name="excess_amount" type="number" min="0" step="0.01" defaultValue={claim?.excess_amount ?? ""} placeholder="Excess" className={inputClass} /><input name="assessor_name" defaultValue={claim?.assessor_name ?? ""} placeholder="Assessor" className={inputClass} /><input name="assessor_phone" defaultValue={claim?.assessor_phone ?? ""} placeholder="Assessor phone" className={inputClass} /><input name="assessor_email" defaultValue={claim?.assessor_email ?? ""} placeholder="Assessor email" className={`${inputClass} col-span-2`} /><input name="job_reference" defaultValue={job.job_reference ?? ""} placeholder="Job reference" className={inputClass} /><input name="work_source" defaultValue={job.work_source ?? ""} placeholder="Work source" className={inputClass} /><select name="repair_type" defaultValue={job.repair_type ?? ""} className={inputClass}><option value="">Repair type</option><option value="collision">Collision</option><option value="mechanical">Mechanical</option><option value="mixed">Collision + mechanical</option><option value="assessment">Assessment only</option></select><select name="repair_size" defaultValue={job.repair_size ?? ""} className={inputClass}><option value="">Repair size</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option><option value="major">Major</option></select><input name="authority_reference" defaultValue={claim?.authority_reference ?? ""} placeholder="Authority ref" className={`${inputClass} col-span-2`} /><input name="accident_location" defaultValue={claim?.accident_location ?? ""} placeholder="Accident location" className={`${inputClass} col-span-2`} /><textarea name="accident_description" rows={3} defaultValue={claim?.accident_description ?? ""} placeholder="Accident / repair description" className={`${inputClass} col-span-2`} /></div></div>
-
-              <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-semibold text-[#06110e]"><Save className="size-3.5" /> Save job details</button>
-            </form>
+              <div className="border-t border-slate-200 pt-3"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Insurance / job</div><div className="grid grid-cols-2 gap-2"><input name="insurer_name" defaultValue={insurer?.name ?? ""} placeholder="Insurer" className={inputClass} /><input name="claim_number" defaultValue={claim?.claim_number ?? ""} placeholder="Claim #" className={inputClass} /><input name="policy_number" defaultValue={claim?.policy_number ?? ""} placeholder="Policy #" className={inputClass} /><input name="excess_amount" type="number" min="0" step="0.01" defaultValue={claim?.excess_amount ?? ""} placeholder="Excess" className={inputClass} /><input name="assessor_name" defaultValue={claim?.assessor_name ?? ""} placeholder="Assessor" className={inputClass} /><input name="assessor_phone" defaultValue={claim?.assessor_phone ?? ""} placeholder="Assessor phone" className={inputClass} /><input name="assessor_email" defaultValue={claim?.assessor_email ?? ""} placeholder="Assessor email" className={`${inputClass} col-span-2`} /><input name="job_reference" defaultValue={job.job_reference ?? ""} placeholder="Job reference" className={inputClass} /><input name="work_source" defaultValue={job.work_source ?? ""} placeholder="Work source" className={inputClass} /><select name="repair_type" defaultValue={job.repair_type ?? ""} className={inputClass}><option value="">Repair type</option><option value="collision">Collision</option><option value="mechanical">Mechanical</option><option value="mixed">Collision + mechanical</option><option value="assessment">Assessment only</option></select><select name="repair_size" defaultValue={job.repair_size ?? ""} className={inputClass}><option value="">Repair size</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option><option value="major">Major</option></select><input name="authority_reference" defaultValue={claim?.authority_reference ?? ""} placeholder="Authority ref" className={`${inputClass} col-span-2`} /><input name="accident_location" defaultValue={claim?.accident_location ?? ""} placeholder="Accident location" className={`${inputClass} col-span-2`} /><textarea name="accident_description" rows={3} defaultValue={claim?.accident_description ?? ""} placeholder="Accident / repair description" className={`${inputClass} col-span-2`} /></div></div>
+              <p className="text-[10px] text-slate-500">These details autosave after you stop typing.</p>
+            </AutoSaveForm>
           </details>
 
-          <section className="mt-3 rounded-xl border border-[var(--brand)]/25 bg-[rgba(88,211,178,0.06)] p-4"><div className="flex items-start gap-3"><Sparkles className="mt-0.5 size-4 shrink-0 text-[var(--brand)]" /><div><h2 className="text-sm font-semibold">AI remains review-only</h2><p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">AI suggestions stay visibly marked until an estimator checks them. Labour, rates, parts pricing and totals remain workshop controlled.</p><Link href={`/jobs/${job.id}/ai-review`} className="mt-2 inline-flex text-xs font-semibold text-[var(--brand)]">Open AI review →</Link></div></div></section>
+          <section className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-start gap-3"><Sparkles className="mt-0.5 size-4 shrink-0 text-emerald-600" /><div><h2 className="text-sm font-semibold">Estimator-controlled review</h2><p className="mt-1 text-[11px] leading-5 text-slate-600">Suggestions stay visibly marked until an estimator checks them. Labour, rates, parts pricing and totals remain workshop controlled.</p><AutosaveLink href={`/jobs/${job.id}/ai-review`} className="mt-2 inline-flex text-xs font-semibold text-emerald-700">Open estimate review →</AutosaveLink></div></div></section>
         </aside>
       </div>
     </div>
@@ -314,17 +349,17 @@ export default async function EstimatePage({
 }
 
 function WorkspaceLink({ href, icon: Icon, label }: { href: string; icon: typeof Camera; label: string }) {
-  return <Link href={href} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-white"><Icon className="size-3.5" /> {label}</Link>;
+  return <AutosaveLink href={href} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"><Icon className="size-3.5" /> {label}</AutosaveLink>;
 }
 
 function CategoryJump({ href, name, count, amount, currency }: { href: string; name: string; count: number; amount: number; currency: string }) {
-  return <Link href={href} className="min-w-44 shrink-0 rounded-lg border border-transparent px-2.5 py-2 transition hover:border-[var(--brand)]/25 hover:bg-[var(--surface-2)] xl:min-w-0"><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium text-[var(--muted)]">{name}</span><span className="rounded-full bg-[var(--surface-3)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">{count}</span></div><div className="mt-1 text-[10px] tabular-nums text-[var(--muted)]">{money(amount, currency)}</div></Link>;
+  return <Link href={href} className="min-w-44 shrink-0 rounded-lg border border-transparent px-2.5 py-2 transition hover:border-emerald-200 hover:bg-emerald-50 xl:min-w-0"><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium text-slate-600">{name}</span><span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500">{count}</span></div><div className="mt-1 text-[10px] tabular-nums text-slate-500">{money(amount, currency)}</div></Link>;
 }
 
 function SmallLink({ href, label }: { href: string; label: string }) {
-  return <Link href={href} className="flex items-center justify-between rounded-lg px-2 py-2 text-xs text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-white"><span>{label}</span><ChevronRight className="size-3" /></Link>;
+  return <AutosaveLink href={href} className="flex items-center justify-between rounded-lg px-2 py-2 text-xs text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"><span>{label}</span><ChevronRight className="size-3" /></AutosaveLink>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="grid gap-1"><span className="text-[9px] text-[var(--muted)]">{label}</span>{children}</label>;
+  return <label className="grid gap-1"><span className="text-[9px] text-slate-500">{label}</span>{children}</label>;
 }
