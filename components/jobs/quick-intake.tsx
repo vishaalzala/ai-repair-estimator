@@ -28,6 +28,8 @@ type EstimateStatus = {
   error?: string | null;
 };
 
+const lightInputClass = "rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-100 disabled:text-slate-500";
+
 export function QuickIntake({ organizationId, userId }: { organizationId: string; userId: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -177,21 +179,21 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
         />
       ) : null}
 
-      <section className="overflow-hidden rounded-3xl border border-[var(--brand)]/30 bg-[linear-gradient(145deg,rgba(88,211,178,0.10),rgba(12,25,42,0.96)_38%)] shadow-2xl shadow-black/10">
-        <div className="border-b border-[var(--border)] px-5 py-5 sm:px-7">
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg shadow-slate-950/5">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-white px-5 py-5 sm:px-7">
           <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[var(--brand)] text-[#06110e]"><Sparkles className="size-5" /></span>
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-white shadow-sm"><Sparkles className="size-5" /></span>
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">AI Quick Intake</div>
-              <h2 className="mt-1 text-xl font-semibold">Upload the car. Start the estimate.</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">Add vehicle photos and anything you already know. Customer details can stay completely empty. AI uses the photos and your notes together to read supported vehicle details, identify visible damage and build the preliminary estimate for estimator review.</p>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">AI Quick Intake</div>
+              <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">Upload the car. Start the estimate.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Add vehicle photos and anything you already know. Customer details can stay empty. AI uses the photos and your notes to read supported vehicle details, identify visible damage and build a preliminary estimate for estimator review.</p>
             </div>
           </div>
         </div>
 
         <div className="space-y-5 p-5 sm:p-7">
           <div
-            className="grid min-h-44 cursor-pointer place-items-center rounded-2xl border border-dashed border-[var(--brand)]/45 bg-[#07111f]/70 px-5 text-center transition hover:border-[var(--brand)]"
+            className="grid min-h-44 cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 px-5 text-center transition hover:border-emerald-500 hover:bg-emerald-50"
             onClick={() => !working && fileRef.current?.click()}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
@@ -200,9 +202,9 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
             }}
           >
             <div>
-              <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-[var(--surface-3)] text-[var(--brand)]"><Camera className="size-5" /></div>
-              <p className="mt-3 text-sm font-semibold">Drop vehicle photos here, or click to choose</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">Up to {maxFiles} images · JPG, PNG, WebP, HEIC or HEIF · 25 MB each</p>
+              <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100"><Camera className="size-5" /></div>
+              <p className="mt-3 text-base font-semibold text-slate-900">Drop vehicle photos here, or click to upload</p>
+              <p className="mt-1.5 text-sm text-slate-600">Up to {maxFiles} images · JPG, PNG, WebP, HEIC or HEIF · 25 MB each</p>
             </div>
             <input
               ref={fileRef}
@@ -217,13 +219,13 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
           </div>
 
           {files.length ? (
-            <div className="rounded-2xl border border-[var(--border)] bg-[#091322]/80 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{files.length} photo{files.length === 1 ? "" : "s"} ready</span><span className="text-[var(--muted)]">{(totalSize / 1024 / 1024).toFixed(1)} MB</span></div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-900">{files.length} photo{files.length === 1 ? "" : "s"} ready</span><span className="font-medium text-slate-500">{(totalSize / 1024 / 1024).toFixed(1)} MB</span></div>
               <div className="flex flex-wrap gap-2">
                 {files.map((file, index) => (
-                  <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--muted)]">
-                    <FileImage className="size-3.5 shrink-0" /><span className="max-w-48 truncate">{file.name}</span>
-                    <button type="button" disabled={working} aria-label={`Remove ${file.name}`} onClick={(event) => { event.stopPropagation(); setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[var(--muted)] hover:text-white"><X className="size-3.5" /></button>
+                  <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm">
+                    <FileImage className="size-3.5 shrink-0 text-slate-500" /><span className="max-w-48 truncate">{file.name}</span>
+                    <button type="button" disabled={working} aria-label={`Remove ${file.name}`} onClick={(event) => { event.stopPropagation(); setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index)); }} className="text-slate-400 transition hover:text-red-500"><X className="size-3.5" /></button>
                   </span>
                 ))}
               </div>
@@ -232,29 +234,29 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
 
           <div>
             <label className="grid gap-2 text-sm">
-              <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-[var(--muted)]">Anything you already know <span className="rounded-full bg-[rgba(88,211,178,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand)]">Recommended</span></span>
-              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-[var(--border)] bg-[#091322] px-4 py-3 text-sm outline-none transition focus:border-[var(--brand)]" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
-              <span className="text-xs leading-5 text-[var(--muted)]">AI combines these notes with the uploaded damage photos when deciding what repair operations should be included in the estimate.</span>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">Anything you already know <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Recommended</span></span>
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
+              <span className="text-sm leading-6 text-slate-600">AI combines these notes with the uploaded damage photos when deciding what repair operations should be included in the estimate.</span>
             </label>
           </div>
 
-          <details className="rounded-2xl border border-[var(--border)] bg-[#091322]/70">
-            <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Add known vehicle details <span className="text-xs font-normal text-[var(--muted)]">(optional — AI fills blanks only)</span></summary>
-            <div className="grid gap-4 border-t border-[var(--border)] p-4 md:grid-cols-2 lg:grid-cols-5">
-              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Registration<input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-              <label className="grid gap-1.5 text-xs text-[var(--muted)]">VIN<input value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Year<input value={modelYear} onChange={(event) => setModelYear(event.target.value)} inputMode="numeric" disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Make<input value={make} onChange={(event) => setMake(event.target.value)} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
-              <label className="grid gap-1.5 text-xs text-[var(--muted)]">Model<input value={model} onChange={(event) => setModel(event.target.value)} disabled={working} className="rounded-xl border border-[var(--border)] bg-[#07111f] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand)]" /></label>
+          <details className="rounded-2xl border border-slate-200 bg-slate-50">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-900">Add known vehicle details <span className="text-xs font-normal text-slate-500">(optional — AI fills blanks only)</span></summary>
+            <div className="grid gap-4 border-t border-slate-200 bg-white p-4 md:grid-cols-2 lg:grid-cols-5">
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Registration<input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} disabled={working} className={lightInputClass} /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">VIN<input value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} disabled={working} className={lightInputClass} /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Year<input value={modelYear} onChange={(event) => setModelYear(event.target.value)} inputMode="numeric" disabled={working} className={lightInputClass} /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Make<input value={make} onChange={(event) => setMake(event.target.value)} disabled={working} className={lightInputClass} /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Model<input value={model} onChange={(event) => setModel(event.target.value)} disabled={working} className={lightInputClass} /></label>
             </div>
           </details>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs leading-5 text-[var(--muted)]">
+          <div className="flex flex-col gap-4 border-t border-slate-100 pt-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm leading-6 text-slate-600">
               <p>Customer name is not required. AI suggestions remain unverified until an estimator reviews them.</p>
-              {status ? <p aria-live="polite" className="mt-1 text-[var(--brand)]">{status}</p> : null}
+              {status ? <p aria-live="polite" className="mt-1 font-semibold text-emerald-700">{status}</p> : null}
             </div>
-            <button type="button" onClick={startQuickIntake} disabled={working || !files.length} className="inline-flex min-w-48 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={startQuickIntake} disabled={working || !files.length} className="inline-flex min-h-12 min-w-48 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none">
               {working ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}
               {working ? "Preparing estimate…" : "Start AI estimate"}
             </button>
