@@ -28,10 +28,23 @@ export async function adminSignIn(formData: FormData) {
     redirect(`/admin/login?error=${enc("This account is not authorised for Super Admin")}`);
   }
 
-  await Promise.all([
-    supabase.from("platform_admins").update({ last_login_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", admin.id),
-    supabase.from("platform_audit_logs").insert({ actor_user_id: data.user.id, action: "admin_login", entity_type: "platform_admin", entity_id: admin.id, metadata: { role: admin.role } }),
+  const [touchResult, auditResult] = await Promise.all([
+    supabase.rpc("touch_platform_admin_login"),
+    supabase.from("platform_audit_logs").insert({
+      actor_user_id: data.user.id,
+      action: "admin_login",
+      entity_type: "platform_admin",
+      entity_id: admin.id,
+      metadata: { role: admin.role },
+    }),
   ]);
+
+  if (touchResult.error) {
+    console.error("Unable to update platform admin last login", touchResult.error.code);
+  }
+  if (auditResult.error) {
+    console.error("Unable to record platform admin login audit", auditResult.error.code);
+  }
 
   redirect("/admin");
 }
