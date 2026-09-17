@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { syncAutomaticEstimateCharges } from "@/lib/estimating/automatic-charges";
+import { syncAutomaticParkingFee } from "@/lib/estimating/parking-fees";
 import { calculateLineTotal, parseNumber } from "@/lib/estimating/pricing-engine";
 
 function value(formData: FormData, key: string) {
@@ -116,6 +118,11 @@ function readLineValues(formData: FormData, defaults?: { hourly_rate?: number | 
   return { quantity, labourHours, labourRate, fixedAmount, partCost, markupPercent, freightAmount, adjustmentAmount, total: calculated.total };
 }
 
+async function syncEstimateDerivedCharges(jobId: string) {
+  await syncAutomaticParkingFee(jobId);
+  await syncAutomaticEstimateCharges(jobId);
+}
+
 export async function addEstimateItem(jobId: string, formData: FormData) {
   const { supabase, organizationId, userId, job, estimate } = await ensureEstimate(jobId);
   const categoryId = value(formData, "category_id");
@@ -148,6 +155,7 @@ export async function addEstimateItem(jobId: string, formData: FormData) {
     line_total_ex_tax: line.total,
     source_type: "manual",
     human_verified: true,
+    extra_selected: formData.get("extra_selected") === "on",
     report_selected: formData.get("report_selected") === "on",
     blend_selected: category.code === "paint" && formData.get("blend_selected") === "on",
     notes: value(formData, "notes") || null,
@@ -163,6 +171,7 @@ export async function addEstimateItem(jobId: string, formData: FormData) {
     await supabase.from("jobs").update({ status: "estimating" }).eq("id", job.id).eq("organization_id", organizationId);
   }
 
+  await syncEstimateDerivedCharges(jobId);
   revalidatePath(`/jobs/${jobId}/estimate`);
 }
 
@@ -175,12 +184,13 @@ export async function updateEstimateItem(jobId: string, formData: FormData) {
   const { supabase, organizationId, userId, estimate } = await ensureEstimate(jobId);
   const { data: existing } = await supabase
     .from("estimate_items")
-    .select("id, source_type, human_verified, report_selected, blend_selected, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, notes")
+    .select("id, source_type, source_ref, human_verified, report_selected, blend_selected, extra_selected, category_id, component, side, operation_code, description, quantity, labour_hours, labour_rate, fixed_amount, part_cost, markup_percent, freight_amount, adjustment_amount, notes")
     .eq("organization_id", organizationId)
     .eq("estimate_id", estimate.id)
     .eq("id", itemId)
     .maybeSingle();
   if (!existing) return;
+  if (existing.source_type === "rule" && (existing.source_ref?.startsWith("auto:") || existing.source_ref === "parking_fee_daily")) return;
 
   const { category } = await getCategoryAndDefaults(organizationId, estimate, categoryId);
   if (!category) return;
@@ -202,6 +212,7 @@ export async function updateEstimateItem(jobId: string, formData: FormData) {
     line_total_ex_tax: line.total,
     notes: value(formData, "notes") || null,
     human_verified: existing.human_verified,
+    extra_selected: formData.get("extra_selected") === "on",
     report_selected: formData.get("report_selected") === "on",
     blend_selected: category.code === "paint" && formData.get("blend_selected") === "on",
   };
@@ -232,6 +243,7 @@ export async function updateEstimateItem(jobId: string, formData: FormData) {
     });
   }
 
+  await syncEstimateDerivedCharges(jobId);
   revalidatePath(`/jobs/${jobId}/estimate`);
 }
 
@@ -240,7 +252,17 @@ export async function deleteEstimateItem(jobId: string, formData: FormData) {
   if (!itemId) return;
 
   const { supabase, organizationId } = await requireOrganizationContext();
+  const { data: existing } = await supabase
+    .from("estimate_items")
+    .select("id, source_type, source_ref")
+    .eq("id", itemId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (!existing) return;
+  if (existing.source_type === "rule" && (existing.source_ref?.startsWith("auto:") || existing.source_ref === "parking_fee_daily")) return;
+
   await supabase.from("estimate_items").delete().eq("id", itemId).eq("organization_id", organizationId);
+  await syncEstimateDerivedCharges(jobId);
   revalidatePath(`/jobs/${jobId}/estimate`);
 }
 
@@ -338,6 +360,33 @@ export async function updateEstimateContext(jobId: string, formData: FormData) {
   revalidatePath(`/jobs/${jobId}`);
 }
 
+export async function createPrintableEstimateVersion(jobId: string) {
+  const { supabase, organizationId } = await requireOrganizationContext();
+  const { data: estimate } = await supabase
+    .from("estimates")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("job_id", jobId)
+    .eq("estimate_type", "primary")
+    .maybeSingle();
+
+  if (!estimate) return { error: "Add at least one estimate item before printing." };
+
+  await syncEstimateDerivedCharges(jobId);
+  const { data: versionId, error } = await supabase.rpc("snapshot_estimate", {
+    p_estimate_id: estimate.id,
+    p_reason: "manual_snapshot",
+  });
+
+  if (error || !versionId) {
+    console.error("snapshot_estimate print failed", error?.code);
+    return { error: "Unable to prepare the estimate printout." };
+  }
+
+  revalidatePath(`/jobs/${jobId}/history`);
+  return { versionId: String(versionId) };
+}
+
 export async function saveEstimateVersion(jobId: string) {
   const { supabase, organizationId } = await requireOrganizationContext();
   const { data: estimate } = await supabase
@@ -352,6 +401,7 @@ export async function saveEstimateVersion(jobId: string) {
     redirect(`/jobs/${jobId}/estimate?error=Add%20at%20least%20one%20estimate%20item%20before%20creating%20a%20version`);
   }
 
+  await syncEstimateDerivedCharges(jobId);
   const { error } = await supabase.rpc("snapshot_estimate", {
     p_estimate_id: estimate.id,
     p_reason: "manual_snapshot",
