@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { AI_PROMPT_CACHE_KEYS } from "@/lib/ai/model-policy";
 
 const nullableConfidence = z.number().min(0).max(1);
 
@@ -98,22 +99,39 @@ export async function analyzeVehicleIntake(input: {
     `Vehicle hint: ${[input.hints.modelYear, input.hints.make, input.hints.model, input.hints.variant].filter(Boolean).join(" ") || "not provided"}`,
     `User notes / accident description: ${input.hints.accidentDescription ?? "not provided"}`,
   ].join("\n");
-  const photoLegend = input.photos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; current_category=${photo.category}; file=${photo.fileName}`).join("\n");
+  const rankedPhotos = [...input.photos].sort((a, b) => {
+    const priority = (category: string) => category === "identification" || category === "document" ? 0 : category === "accident_damage" ? 1 : 2;
+    return priority(a.category) - priority(b.category);
+  });
+  const visionPhotos = rankedPhotos.slice(0, 16);
+  const highDetailIds = new Set(
+    visionPhotos
+      .filter((photo) => photo.category === "identification" || photo.category === "document")
+      .slice(0, 2)
+      .map((photo) => photo.id),
+  );
+  const photoLegend = visionPhotos.map((photo, index) => `Photo ${index + 1}: id=${photo.id}; current_category=${photo.category}; file=${photo.fileName}`).join("\n");
 
   const content: Array<
     | { type: "input_text"; text: string }
-    | { type: "input_image"; image_url: string; detail: "high" }
+    | { type: "input_image"; image_url: string; detail: "low" | "high" }
   > = [
     {
       type: "input_text",
       text: `${hintText}\n\nPHOTO LEGEND\n${photoLegend}\n\nExtract vehicle identity where supported by evidence, classify each photo, identify visible damage, and prepare preliminary estimating-operation suggestions for human review. Also record visible estimate-relevant attachments/accessories around the repair area (lamps, trims, mouldings, grilles, liners, sensors, badges, decals/livery, handles and similar items) when they may require removal, transfer, inspection or replacement to complete the repair.`,
     },
-    ...input.photos.map((photo) => ({ type: "input_image" as const, image_url: photo.signedUrl, detail: "high" as const })),
+    ...visionPhotos.map((photo) => ({
+      type: "input_image" as const,
+      image_url: photo.signedUrl,
+      detail: highDetailIds.has(photo.id) ? "high" as const : "low" as const,
+    })),
   ];
 
   const response = await client.responses.parse({
     model: input.model,
     store: false,
+    reasoning: { effort: "low" },
+    prompt_cache_key: AI_PROMPT_CACHE_KEYS.intake,
     instructions: [
       "You assist a professional automotive repair estimator during photo-first intake.",
       "Use supplied photos and user-entered hints only. Do not use outside knowledge to invent identifiers or claim facts that are not supported.",
