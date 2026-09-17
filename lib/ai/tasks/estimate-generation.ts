@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { AI_PROMPT_CACHE_KEYS } from "@/lib/ai/model-policy";
 
 const estimateCategoryCodes = [
   "rr",
@@ -131,6 +132,9 @@ export async function generateRepairEstimateDraft(input: {
 
   const response = await client.responses.parse({
     model: input.model,
+    reasoning: { effort: "medium" },
+    prompt_cache_key: AI_PROMPT_CACHE_KEYS.estimate,
+    max_output_tokens: 9000,
     instructions: [
       "You are a senior New Zealand collision-repair estimator preparing a COMPLETE PRELIMINARY insurance/workshop estimate from vehicle photo evidence, estimator notes and approved estimating knowledge.",
       "CURRENT JOB EVIDENCE HAS PRIORITY OVER MEMORY. The current photos, visible-damage findings, side and impact location control the repair scope. Historical Training Cases are precedent for completeness and structure only. Never move the repair to a different end/side/panel because a historical example mentioned it. If current evidence is FRONT, do not create REAR operations; if current evidence is REAR, do not create FRONT operations unless independently supported.",
