@@ -7,10 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { createQuickJob } from "@/app/(platform)/jobs/actions";
 import { PreparingEstimateOverlay } from "@/components/jobs/preparing-estimate-overlay";
 import { INSURANCE_CUSTOMERS, PRIVATE_JOB_OPTION } from "@/lib/insurance/insurers";
+import { compressImageForUpload } from "@/lib/images/compress-upload";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const maxBytes = 25 * 1024 * 1024;
 const maxFiles = 20;
+const immutableCacheSeconds = "31536000";
 
 function safeFileName(name: string) {
   const extension = name.includes(".") ? `.${name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "")}` : "";
@@ -110,13 +112,15 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
       jobId = created.jobId;
 
       const supabase = createClient();
-      setStatus(`Uploading ${files.length} photo${files.length === 1 ? "" : "s"} securely…`);
+      setStatus(`Optimising ${files.length} photo${files.length === 1 ? "" : "s"} before secure upload…`);
 
       for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
+        const originalFile = files[index];
+        setStatus(`Compressing photo ${index + 1} of ${files.length}…`);
+        const file = await compressImageForUpload(originalFile);
         const path = `${organizationId}/${jobId}/originals/${safeFileName(file.name)}`;
         const { error: uploadError } = await supabase.storage.from("job-files").upload(path, file, {
-          cacheControl: "3600",
+          cacheControl: immutableCacheSeconds,
           contentType: file.type,
           upsert: false,
         });
@@ -126,7 +130,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
           organization_id: organizationId,
           job_id: jobId,
           category: index === 0 ? "identification" : "accident_damage",
-          file_name: file.name,
+          file_name: originalFile.name,
           mime_type: file.type,
           file_size_bytes: file.size,
           storage_path_original: path,
@@ -212,6 +216,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
               <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100"><Camera className="size-5" /></div>
               <p className="mt-3 text-base font-semibold text-slate-900">Drop vehicle photos here, or click to upload</p>
               <p className="mt-1.5 text-sm text-slate-600">Up to {maxFiles} images · JPG, PNG, WebP, HEIC or HEIF · 25 MB each</p>
+              <p className="mt-1 text-xs font-medium text-emerald-700">Photos are resized and compressed to WebP before private storage.</p>
             </div>
             <input
               ref={fileRef}
@@ -227,7 +232,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
 
           {files.length ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-900">{files.length} photo{files.length === 1 ? "" : "s"} ready</span><span className="font-medium text-slate-500">{(totalSize / 1024 / 1024).toFixed(1)} MB</span></div>
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-900">{files.length} photo{files.length === 1 ? "" : "s"} ready</span><span className="font-medium text-slate-500">{(totalSize / 1024 / 1024).toFixed(1)} MB before compression</span></div>
               <div className="flex flex-wrap gap-2">
                 {files.map((file, index) => (
                   <span key={`${file.name}-${file.lastModified}-${index}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm">
@@ -251,7 +256,7 @@ export function QuickIntake({ organizationId, userId }: { organizationId: string
           <div>
             <label className="grid gap-2 text-sm">
               <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">Anything you already know <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Recommended</span></span>
-              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="Example: front bumper repair, LH front impact, replace RH headlamp, warning light on dash…" />
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} disabled={working} className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="Example: rear bumper repair, RH rear impact, replace tail lamp, company decals on bumper…" />
               <span className="text-sm leading-6 text-slate-600">AI combines these notes with the uploaded damage photos and selected job context when deciding what repair operations should be included in the estimate.</span>
             </label>
           </div>
