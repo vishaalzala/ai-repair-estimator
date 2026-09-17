@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { analyzeVehicleIntake } from "@/lib/ai/tasks/vehicle-intake";
+import { modelFor } from "@/lib/ai/model-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -84,10 +85,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   await supabase.from("jobs").update({ status: "estimating" }).eq("organization_id", organizationId).eq("id", jobId);
 
-  const model = process.env.AI_INTAKE_MODEL?.trim() || process.env.AI_DAMAGE_MODEL?.trim();
+  const model = modelFor("intake");
   if (!process.env.OPENAI_API_KEY || !model) {
     return NextResponse.json({
-      message: "Draft estimate started and photos saved. Configure OpenAI and AI_INTAKE_MODEL (or AI_DAMAGE_MODEL) to auto-read the vehicle and prepare repair operations.",
+      message: "Draft estimate started and photos saved. Configure the AI provider to auto-read the vehicle and prepare repair operations.",
       jobId,
       estimateId: estimate.id,
     }, { status: 202 });
