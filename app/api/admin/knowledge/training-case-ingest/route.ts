@@ -5,6 +5,37 @@ import { extractTrainingCaseFromQuoteAndPhotos } from "@/lib/ai/tasks/training-c
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+function trainingKnowledgeText(input: {
+  title: string;
+  insurerName: string | null;
+  vehicleYear: number | null;
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  vehicleVariant: string | null;
+  repairArea: string | null;
+  damageSummary: string;
+  estimatorLessons: string;
+  lines: Array<{ category_code: string; side: string | null; operation_code: string | null; description: string; blend_selected: boolean }>;
+}) {
+  const vehicle = [input.vehicleYear, input.vehicleMake, input.vehicleModel, input.vehicleVariant].filter(Boolean).join(" ") || "Vehicle not specified";
+  const lineText = input.lines.length
+    ? input.lines.map((line) => `- ${line.category_code} | ${line.side || "NA"} | ${line.operation_code || ""} | ${line.description}${line.blend_selected ? " | BLEND" : ""}`).join("\n")
+    : "No structured example lines supplied.";
+
+  return [
+    "TRAINING CASE — APPROVED HUMAN ESTIMATE",
+    `CASE: ${input.title}`,
+    input.insurerName ? `INSURER / JOB TYPE: ${input.insurerName}` : null,
+    `VEHICLE: ${vehicle}`,
+    input.repairArea ? `REPAIR AREA: ${input.repairArea}` : null,
+    `VISIBLE DAMAGE / CONTEXT: ${input.damageSummary}`,
+    `REUSABLE ESTIMATOR LESSONS: ${input.estimatorLessons}`,
+    "APPROVED LINE STRUCTURE (historical example only; do not copy prices or hours blindly):",
+    lineText,
+    "Use this case only when it is relevant to the current vehicle/damage and insurer/job context. Current photos, estimator instructions and workshop settings always override this precedent. Hidden damage remains TBC/check-after-strip unless current evidence supports it.",
+  ].filter(Boolean).join("\n\n");
+}
+
 export async function POST(request: Request) {
   const adminContext = await getPlatformAdminIfSignedIn();
   if (!adminContext) return NextResponse.json({ message: "Platform administrator access is required." }, { status: 403 });
@@ -77,7 +108,7 @@ export async function POST(request: Request) {
 
     const selectedInsurer = trainingCase.insurer_name?.trim();
     const insurerName = selectedInsurer || extracted.insurerName?.trim() || null;
-    const { error: updateError } = await supabase.from("estimator_training_cases").update({
+    const extractedCase = {
       title: extracted.title.trim(),
       insurer_name: insurerName,
       vehicle_make: extracted.vehicleMake?.trim() || null,
@@ -105,12 +136,63 @@ export async function POST(request: Request) {
         output_tokens: result.usage.outputTokens,
       },
       updated_at: new Date().toISOString(),
-    }).eq("id", trainingCase.id);
+    };
+
+    const { error: updateError } = await supabase.from("estimator_training_cases").update(extractedCase).eq("id", trainingCase.id);
     if (updateError) throw new Error(`Unable to update the Training Case: ${updateError.code}`);
+
+    const contentText = trainingKnowledgeText({
+      title: extractedCase.title,
+      insurerName,
+      vehicleYear: extractedCase.vehicle_year,
+      vehicleMake: extractedCase.vehicle_make,
+      vehicleModel: extractedCase.vehicle_model,
+      vehicleVariant: extractedCase.vehicle_variant,
+      repairArea: extractedCase.repair_area,
+      damageSummary: extractedCase.damage_summary,
+      estimatorLessons: extractedCase.estimator_lessons,
+      lines: lineRows,
+    });
+
+    const { data: knowledgeSource, error: knowledgeError } = await supabase.from("knowledge_sources").insert({
+      organization_id: null,
+      user_id: null,
+      scope: "global",
+      source_type: "learned_pattern",
+      title: `Training Case: ${extractedCase.title}`,
+      content_text: contentText,
+      status: "active",
+      created_by: userId,
+    }).select("id").single();
+
+    if (knowledgeError || !knowledgeSource) {
+      await supabase.from("estimator_training_cases").update({
+        ingestion_status: "ready",
+        ingestion_error: "Extraction succeeded but the knowledge entry could not be published.",
+        updated_at: new Date().toISOString(),
+      }).eq("id", trainingCase.id);
+      return NextResponse.json({ message: "The Training Case was extracted, but it could not be published to estimator memory." }, { status: 500 });
+    }
+
+    const approvedAt = new Date().toISOString();
+    const { error: approveError } = await supabase.from("estimator_training_cases").update({
+      status: "approved",
+      approved_at: approvedAt,
+      approved_by: userId,
+      knowledge_source_id: knowledgeSource.id,
+      ingestion_status: "ready",
+      ingestion_error: null,
+      updated_at: approvedAt,
+    }).eq("id", trainingCase.id);
+
+    if (approveError) {
+      await supabase.from("knowledge_sources").update({ status: "retired", updated_at: new Date().toISOString() }).eq("id", knowledgeSource.id);
+      throw new Error(`The case was extracted but could not be approved: ${approveError.code}`);
+    }
 
     await supabase.from("platform_audit_logs").insert({
       actor_user_id: userId,
-      action: "training_case_extract",
+      action: "training_case_publish",
       entity_type: "estimator_training_case",
       entity_id: trainingCase.id,
       metadata: {
@@ -119,14 +201,17 @@ export async function POST(request: Request) {
         photo_count: result.photoCount,
         line_count: lineRows.length,
         insurer_name: insurerName,
+        knowledge_source_id: knowledgeSource.id,
+        source: "zip_quote_ingestion",
       },
     });
 
     return NextResponse.json({
-      message: `Training Case ready for review: ${lineRows.length} estimate lines and ${result.photoCount} photos processed.`,
+      message: `Learned and added to estimator memory: ${lineRows.length} estimate lines and ${result.photoCount} photos processed.`,
       caseId: trainingCase.id,
       lineCount: lineRows.length,
       photoCount: result.photoCount,
+      knowledgeSourceId: knowledgeSource.id,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Training Case extraction failed.";
