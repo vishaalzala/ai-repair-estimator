@@ -32,6 +32,7 @@ export function AutoSaveForm({
   const savedVersionRef = useRef(0);
   const savingRef = useRef<Promise<boolean> | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
 
   const save = useCallback(async (): Promise<boolean> => {
     const form = formRef.current;
@@ -65,7 +66,7 @@ export function AutoSaveForm({
         savingRef.current = null;
         if (needsFollowup && dirtyRef.current) {
           if (timerRef.current) clearTimeout(timerRef.current);
-          timerRef.current = setTimeout(() => void save(), 0);
+          timerRef.current = setTimeout(() => void saveRef.current(), 0);
         }
       }
     })();
@@ -73,6 +74,10 @@ export function AutoSaveForm({
     savingRef.current = task;
     return task;
   }, [action, router]);
+
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
 
   const scheduleSave = useCallback(() => {
     editVersionRef.current += 1;
