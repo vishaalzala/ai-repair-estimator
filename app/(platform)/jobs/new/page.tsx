@@ -11,9 +11,9 @@ const steps = [
   { label: "Estimate", icon: Shield },
 ];
 
-const inputClass = "rounded-xl border border-[var(--border)] bg-[#091322] px-3.5 py-3 text-sm outline-none transition focus:border-[var(--brand)]";
+const inputClass = "rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 const labelClass = "grid gap-2 text-sm";
-const labelTextClass = "text-xs font-medium text-[var(--muted)]";
+const labelTextClass = "text-xs font-semibold text-slate-600";
 
 export default async function NewJobPage({
   searchParams,
@@ -23,23 +23,23 @@ export default async function NewJobPage({
   const [{ error }, context] = await Promise.all([searchParams, requireOrganizationContext()]);
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7 lg:px-9 lg:py-8">
-      <Link href="/jobs" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-white"><ArrowLeft className="size-4" /> Back to jobs</Link>
-      <div className="mb-7"><h1 className="text-3xl font-semibold tracking-tight">New assessment</h1><p className="mt-2 text-sm text-[var(--muted)]">Start from photos with AI Quick Intake, or enter the assessment manually. Customer details can be added later.</p></div>
+    <div className="mx-auto max-w-6xl px-5 py-6 text-slate-950 sm:px-7 lg:px-9 lg:py-8">
+      <Link href="/jobs" className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"><ArrowLeft className="size-4" /> Back to jobs</Link>
+      <div className="mb-7"><h1 className="text-3xl font-bold tracking-tight text-slate-950">New assessment</h1><p className="mt-2 text-sm leading-6 text-slate-600">Start from photos with AI Quick Intake, or enter the assessment manually. Customer details can be added later.</p></div>
 
-      {error ? <div className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+      {error ? <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div> : null}
 
       <QuickIntake organizationId={context.organizationId} userId={context.userId} />
 
-      <div className="my-8 flex items-center gap-4"><div className="h-px flex-1 bg-[var(--border)]" /><span className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">Or enter manually</span><div className="h-px flex-1 bg-[var(--border)]" /></div>
+      <div className="my-8 flex items-center gap-4"><div className="h-px flex-1 bg-slate-200" /><span className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">Or enter manually</span><div className="h-px flex-1 bg-slate-200" /></div>
 
       <div className="mb-5 grid gap-2 sm:grid-cols-4">
-        {steps.map((step, index) => { const Icon = step.icon; return <div key={step.label} className={`rounded-xl border p-3 ${index === 0 ? "border-[var(--brand)] bg-[rgba(88,211,178,0.08)]" : "border-[var(--border)] bg-[var(--surface)]"}`}><div className="flex items-center gap-2 text-xs font-medium"><Icon className="size-4" /> {step.label}</div></div>; })}
+        {steps.map((step, index) => { const Icon = step.icon; return <div key={step.label} className={`rounded-xl border p-3 shadow-sm ${index === 0 ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}><div className={`flex items-center gap-2 text-xs font-semibold ${index === 0 ? "text-emerald-800" : "text-slate-700"}`}><Icon className="size-4" /> {step.label}</div></div>; })}
       </div>
 
       <form action={createJob} className="space-y-5">
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-7">
-          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[var(--surface-3)] text-[var(--brand)]"><UserRound className="size-4" /></span><div><h2 className="font-semibold">Customer <span className="text-xs font-normal text-[var(--muted)]">(optional)</span></h2><p className="mt-0.5 text-xs text-[var(--muted)]">Leave this empty if the customer or claim contact is not known yet.</p></div></div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><UserRound className="size-4" /></span><div><h2 className="font-semibold text-slate-950">Customer <span className="text-xs font-normal text-slate-500">(optional)</span></h2><p className="mt-0.5 text-xs leading-5 text-slate-600">Leave this empty if the customer or claim contact is not known yet.</p></div></div>
           <div className="grid gap-5 md:grid-cols-2">
             <label className={labelClass}><span className={labelTextClass}>First name</span><input name="customer_first_name" className={inputClass} autoComplete="given-name" /></label>
             <label className={labelClass}><span className={labelTextClass}>Last name</span><input name="customer_last_name" className={inputClass} autoComplete="family-name" /></label>
@@ -48,8 +48,8 @@ export default async function NewJobPage({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-7">
-          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[var(--surface-3)] text-[var(--brand)]"><CarFront className="size-4" /></span><div><h2 className="font-semibold">Vehicle</h2><p className="mt-0.5 text-xs text-[var(--muted)]">Enter whatever is known. Missing vehicle details can be completed later or populated by AI from photos.</p></div></div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><CarFront className="size-4" /></span><div><h2 className="font-semibold text-slate-950">Vehicle</h2><p className="mt-0.5 text-xs leading-5 text-slate-600">Enter whatever is known. Missing vehicle details can be completed later or populated by AI from photos.</p></div></div>
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             <label className={labelClass}><span className={labelTextClass}>Registration</span><input name="registration" className={inputClass} autoCapitalize="characters" /></label>
             <label className={labelClass}><span className={labelTextClass}>VIN</span><input name="vin" className={inputClass} autoCapitalize="characters" /></label>
@@ -64,11 +64,11 @@ export default async function NewJobPage({
             <label className={labelClass}><span className={labelTextClass}>Fuel type</span><input name="fuel_type" className={inputClass} placeholder="Petrol, diesel, electric…" /></label>
             <label className={labelClass}><span className={labelTextClass}>ADAS present</span><select name="adas_present" className={inputClass} defaultValue=""><option value="">Not confirmed</option><option value="true">Yes</option><option value="false">No</option></select></label>
           </div>
-          <div className="mt-5 flex flex-wrap gap-5 text-sm text-[var(--muted)]"><label className="flex items-center gap-2"><input type="checkbox" name="is_ev" className="size-4 accent-[var(--brand)]" /> Electric vehicle</label><label className="flex items-center gap-2"><input type="checkbox" name="is_hybrid" className="size-4 accent-[var(--brand)]" /> Hybrid</label></div>
+          <div className="mt-5 flex flex-wrap gap-5 text-sm font-medium text-slate-600"><label className="flex items-center gap-2"><input type="checkbox" name="is_ev" className="size-4 accent-emerald-500" /> Electric vehicle</label><label className="flex items-center gap-2"><input type="checkbox" name="is_hybrid" className="size-4 accent-emerald-500" /> Hybrid</label></div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-7">
-          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[var(--surface-3)] text-[var(--brand)]"><Shield className="size-4" /></span><div><h2 className="font-semibold">Insurance & repair context</h2><p className="mt-0.5 text-xs text-[var(--muted)]">Claim information can be completed later if it is not available yet.</p></div></div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="mb-5 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><Shield className="size-4" /></span><div><h2 className="font-semibold text-slate-950">Insurance & repair context</h2><p className="mt-0.5 text-xs leading-5 text-slate-600">Claim information can be completed later if it is not available yet.</p></div></div>
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             <label className={labelClass}><span className={labelTextClass}>Insurer</span><input name="insurer_name" className={inputClass} /></label>
             <label className={labelClass}><span className={labelTextClass}>Claim number</span><input name="claim_number" className={inputClass} /></label>
@@ -89,8 +89,8 @@ export default async function NewJobPage({
         </section>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-[var(--muted)]">Manual creation saves the assessment first. You can add photos and run AI from the job afterward.</p>
-          <button type="submit" className="rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[#06110e] transition hover:bg-[var(--brand-strong)]">Create assessment & continue</button>
+          <p className="text-xs leading-5 text-slate-600">Manual creation saves the assessment first. You can add photos and run AI from the job afterward.</p>
+          <button type="submit" className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300">Create assessment & continue</button>
         </div>
       </form>
     </div>
