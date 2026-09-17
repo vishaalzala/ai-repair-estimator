@@ -20,7 +20,7 @@ export async function saveSupplier(formData: FormData) {
     phone: text(formData, "phone"),
     account_reference: text(formData, "account_reference"),
     notes: text(formData, "notes"),
-    is_active: formData.get("is_active") !== "false",
+    is_active: formData.get("is_active") === "true",
   };
 
   const result = id
