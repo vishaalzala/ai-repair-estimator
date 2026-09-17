@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import type { DamageAnalysis } from "@/lib/ai/tasks/damage-analysis";
 import { generateRepairEstimateDraft } from "@/lib/ai/tasks/estimate-generation";
@@ -207,6 +208,49 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
     .map((source) => `K:${source.id} | scope=${source.scope} | ${source.title}\n${clip(source.content_text ?? "")}`)
     .join("\n\n") || "No additional workshop knowledge supplied.";
 
+  const inputFingerprint = createHash("sha256").update(JSON.stringify({
+    model,
+    vehicleContext,
+    claimContext,
+    damageContext,
+    workshopContext,
+    knowledgeSourceIds: relevantKnowledge.map((source) => source.id),
+  })).digest("hex");
+
+  const { data: reusableRun } = await supabase
+    .from("ai_analysis_runs")
+    .select("id, structured_output")
+    .eq("organization_id", organizationId)
+    .eq("job_id", jobId)
+    .eq("task", "estimate_generation")
+    .eq("model", model)
+    .eq("status", "completed")
+    .contains("input_metadata", { input_fingerprint: inputFingerprint })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (reusableRun) {
+    const { count: reusableItemCount } = await supabase
+      .from("estimate_items")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("estimate_id", estimate.id)
+      .eq("source_type", "ai")
+      .eq("source_ref", reusableRun.id);
+
+    if ((reusableItemCount ?? 0) > 0) {
+      const previous = reusableRun.structured_output as { summary?: string; inspectionNotes?: string[] } | null;
+      return {
+        estimateId: estimate.id,
+        itemCount: reusableItemCount ?? 0,
+        summary: previous?.summary ?? "Existing AI estimate is already up to date.",
+        inspectionNotes: previous?.inspectionNotes ?? [],
+        reused: true,
+      };
+    }
+  }
+
   const { data: run, error: runError } = await supabase.from("ai_analysis_runs").insert({
     organization_id: organizationId,
     job_id: jobId,
@@ -224,6 +268,7 @@ export async function generateAndPersistAiEstimate(jobId: string, damageAnalysis
       insurer_name: insurerName || null,
       model_policy_tier: modelDecision.tier,
       model_policy_reason: modelDecision.reason,
+      input_fingerprint: inputFingerprint,
     },
     created_by: userId,
   }).select("id").single();
