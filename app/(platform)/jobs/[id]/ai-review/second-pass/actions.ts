@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { reviewRepairEstimate } from "@/lib/ai/tasks/estimate-review";
+import { modelFor } from "@/lib/ai/model-policy";
 
 function clean(value: unknown) {
   return String(value ?? "").trim();
@@ -15,7 +16,7 @@ function clip(value: string, max = 1600) {
 
 export async function runSmartEstimateReview(jobId: string) {
   const { supabase, organizationId, userId } = await requireOrganizationContext();
-  const model = process.env.AI_REVIEW_MODEL?.trim();
+  const model = modelFor("review");
   if (!process.env.OPENAI_API_KEY || !model) {
     redirect(`/jobs/${jobId}/ai-review/second-pass?error=Smart%20review%20is%20not%20available%20right%20now.%20Please%20contact%20your%20platform%20administrator`);
   }
