@@ -2,6 +2,7 @@ import { inflateRawSync } from "node:zlib";
 import OpenAI, { toFile } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { AI_PROMPT_CACHE_KEYS } from "@/lib/ai/model-policy";
 
 const TrainingCaseExtractionSchema = z.object({
   title: z.string().min(1),
@@ -126,7 +127,7 @@ export async function extractTrainingCaseFromQuoteAndPhotos(input: {
   if (input.quoteBytes.byteLength > 25 * 1024 * 1024) throw new Error("Keep the quote document at 25 MB or less.");
 
   const images = extractImagesFromZip(input.zipBytes);
-  const supportedImages = images.filter((image) => image.mimeType).slice(0, 24);
+  const supportedImages = images.filter((image) => image.mimeType).slice(0, 12);
   const client = new OpenAI({ apiKey });
   const uploadedQuote = await client.files.create({
     file: await toFile(input.quoteBytes, input.quoteFileName, { type: input.quoteMimeType || "application/octet-stream" }),
@@ -137,11 +138,14 @@ export async function extractTrainingCaseFromQuoteAndPhotos(input: {
     const imageInputs = supportedImages.map((image) => ({
       type: "input_image" as const,
       image_url: `data:${image.mimeType};base64,${Buffer.from(image.bytes).toString("base64")}`,
-      detail: "high" as const,
+      detail: "low" as const,
     }));
 
     const response = await client.responses.parse({
       model: input.model,
+      reasoning: { effort: "low" },
+      prompt_cache_key: AI_PROMPT_CACHE_KEYS.training,
+      max_output_tokens: 8000,
       instructions: [
         "You are extracting one human-approved automotive repair estimating training case.",
         "The uploaded quote/estimate is authoritative for the approved operation line structure, historical labour hours and historical approved amounts.",
