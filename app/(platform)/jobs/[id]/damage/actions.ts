@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { analyzeVehicleDamage } from "@/lib/ai/tasks/damage-analysis";
+import { modelFor } from "@/lib/ai/model-policy";
 import { generateAndPersistAiEstimate } from "@/lib/estimating/ai-estimate";
 import { meterJobAiUsage } from "@/lib/billing/usage";
 
@@ -11,7 +12,7 @@ const supportedAiImageTypes = new Set(["image/jpeg", "image/png", "image/webp"])
 
 export async function runDamageAnalysis(jobId: string) {
   const { supabase, organizationId, userId } = await requireOrganizationContext();
-  const model = process.env.AI_DAMAGE_MODEL?.trim();
+  const model = modelFor("damage");
 
   if (!process.env.OPENAI_API_KEY || !model) {
     redirect(`/jobs/${jobId}/damage?error=OpenAI%20is%20not%20configured%20yet.%20Add%20the%20API%20key%20and%20damage%20model%20securely%20in%20the%20deployment%20environment`);
