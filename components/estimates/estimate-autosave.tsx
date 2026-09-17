@@ -1,0 +1,167 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { Check, Loader2, Printer } from "lucide-react";
+
+type ServerFormAction = (formData: FormData) => Promise<void>;
+type PrintAction = () => Promise<{ versionId?: string; error?: string }>;
+
+type FlushDetail = { pending: Promise<unknown>[] };
+
+function emitStatus(status: "saving" | "saved" | "error") {
+  window.dispatchEvent(new CustomEvent("estimate:save-status", { detail: status }));
+}
+
+export function AutoSaveForm({
+  action,
+  children,
+  className,
+  debounceMs = 700,
+}: {
+  action: ServerFormAction;
+  children: ReactNode;
+  className?: string;
+  debounceMs?: number;
+}) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const dirtyRef = useRef(false);
+  const savingRef = useRef<Promise<void> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const save = useCallback(async () => {
+    const form = formRef.current;
+    if (!form || !dirtyRef.current) return;
+    if (savingRef.current) return savingRef.current;
+
+    const task = (async () => {
+      try {
+        emitStatus("saving");
+        await action(new FormData(form));
+        dirtyRef.current = false;
+        emitStatus("saved");
+        router.refresh();
+      } catch (error) {
+        console.error("Estimate autosave failed", error);
+        emitStatus("error");
+      } finally {
+        savingRef.current = null;
+      }
+    })();
+
+    savingRef.current = task;
+    return task;
+  }, [action, router]);
+
+  const scheduleSave = useCallback(() => {
+    dirtyRef.current = true;
+    emitStatus("saving");
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void save(), debounceMs);
+  }, [debounceMs, save]);
+
+  useEffect(() => {
+    const flush = (event: Event) => {
+      const detail = (event as CustomEvent<FlushDetail>).detail;
+      if (!detail?.pending) return;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (dirtyRef.current) detail.pending.push(save());
+    };
+    window.addEventListener("estimate:flush", flush);
+    return () => {
+      window.removeEventListener("estimate:flush", flush);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [save]);
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+    if (submitter?.dataset.nativeSubmit === "true") return;
+    event.preventDefault();
+    dirtyRef.current = true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    void save();
+  }
+
+  return (
+    <form
+      ref={formRef}
+      className={className}
+      onInput={scheduleSave}
+      onChange={scheduleSave}
+      onSubmit={onSubmit}
+    >
+      {children}
+    </form>
+  );
+}
+
+async function flushEstimateForms() {
+  const detail: FlushDetail = { pending: [] };
+  window.dispatchEvent(new CustomEvent("estimate:flush", { detail }));
+  if (detail.pending.length) await Promise.allSettled(detail.pending);
+}
+
+export function AutosaveLink({ href, className, children, ariaLabel }: { href: string; className?: string; children: ReactNode; ariaLabel?: string }) {
+  const router = useRouter();
+
+  async function navigate(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    await flushEstimateForms();
+    router.push(href);
+  }
+
+  return <Link href={href} onClick={navigate} className={className} aria-label={ariaLabel}>{children}</Link>;
+}
+
+export function EstimateSaveStatus() {
+  const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
+
+  useEffect(() => {
+    const listener = (event: Event) => setStatus((event as CustomEvent<typeof status>).detail);
+    window.addEventListener("estimate:save-status", listener);
+    return () => window.removeEventListener("estimate:save-status", listener);
+  }, []);
+
+  if (status === "saving") return <span className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]"><Loader2 className="size-3.5 animate-spin" /> Saving…</span>;
+  if (status === "error") return <span className="text-xs font-medium text-red-500">Autosave failed</span>;
+  return <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600"><Check className="size-3.5" /> Saved</span>;
+}
+
+export function PrintEstimateButton({ action }: { action: PrintAction }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function print() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const popup = window.open("", "_blank");
+    try {
+      await flushEstimateForms();
+      const result = await action();
+      if (!result.versionId) throw new Error(result.error || "Unable to prepare printout");
+      const url = `/api/reports/estimate/${result.versionId}/pdf`;
+      if (popup) popup.location.href = url;
+      else window.location.href = url;
+    } catch (caught) {
+      popup?.close();
+      setError(caught instanceof Error ? caught.message : "Unable to prepare printout");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {error ? <span className="hidden text-[10px] text-red-500 md:inline">{error}</span> : null}
+      <button type="button" onClick={print} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--text)] shadow-sm transition hover:bg-[var(--surface-2)] disabled:opacity-60">
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
+        <span className="hidden sm:inline">Print</span>
+      </button>
+    </div>
+  );
+}
