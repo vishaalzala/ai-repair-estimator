@@ -12,27 +12,60 @@ function env(name: string) {
   return value || null;
 }
 
-export function modelFor(workload: AiWorkload) {
+export function aiModelPolicyMode() {
+  return env("AI_MODEL_POLICY_MODE") === "custom" ? "custom" as const : "optimized" as const;
+}
+
+function customModel(workload: AiWorkload) {
   switch (workload) {
     case "intake":
-      return env("AI_INTAKE_MODEL") ?? env("AI_DAMAGE_MODEL") ?? "gpt-5.6-luna";
+      return env("AI_INTAKE_MODEL") ?? env("AI_DAMAGE_MODEL");
     case "damage":
-      return env("AI_DAMAGE_MODEL") ?? "gpt-5.6-luna";
+      return env("AI_DAMAGE_MODEL");
     case "estimate":
-      return env("AI_ESTIMATE_MODEL") ?? "gpt-5.6-terra";
+      return env("AI_ESTIMATE_MODEL") ?? env("AI_REVIEW_MODEL") ?? env("AI_DAMAGE_MODEL");
     case "review":
-      return env("AI_REVIEW_MODEL") ?? "gpt-5.6-terra";
+      return env("AI_REVIEW_MODEL") ?? env("AI_ESTIMATE_MODEL");
     case "document":
-      return env("AI_DOCUMENT_MODEL") ?? "gpt-5.6-luna";
+      return env("AI_DOCUMENT_MODEL");
     case "training":
-      return env("AI_TRAINING_MODEL") ?? env("AI_DOCUMENT_MODEL") ?? "gpt-5.6-terra";
+      return env("AI_TRAINING_MODEL") ?? env("AI_DOCUMENT_MODEL") ?? env("AI_ESTIMATE_MODEL");
     case "learning":
-      return env("AI_LEARNING_MODEL") ?? "gpt-5.6-luna";
+      return env("AI_LEARNING_MODEL") ?? env("AI_DOCUMENT_MODEL");
   }
 }
 
+export function modelFor(workload: AiWorkload) {
+  if (aiModelPolicyMode() === "custom") {
+    const configured = customModel(workload);
+    if (configured) return configured;
+  }
+
+  switch (workload) {
+    case "intake":
+    case "damage":
+    case "document":
+    case "learning":
+      return "gpt-5.6-luna";
+    case "estimate":
+    case "review":
+    case "training":
+      return "gpt-5.6-terra";
+  }
+}
+
+export function embeddingModel() {
+  if (aiModelPolicyMode() === "custom") {
+    return env("AI_EMBEDDING_MODEL") ?? "text-embedding-3-small";
+  }
+  return "text-embedding-3-small";
+}
+
 export function escalationModel() {
-  return env("AI_ESCALATION_MODEL") ?? "gpt-5.6-sol";
+  if (aiModelPolicyMode() === "custom") {
+    return env("AI_ESCALATION_MODEL") ?? env("AI_ESTIMATE_MODEL") ?? "gpt-5.6-sol";
+  }
+  return "gpt-5.6-sol";
 }
 
 export function estimateModelForDamage(input: {
