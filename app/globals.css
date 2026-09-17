@@ -1,26 +1,54 @@
 @import "tailwindcss";
 
 :root {
-  --background: #08101d;
-  --surface: #0d1728;
-  --surface-2: #111f34;
-  --surface-3: #172941;
-  --border: #213650;
-  --text: #f4f7fb;
-  --muted: #94a7bd;
-  --brand: #58d3b2;
-  --brand-strong: #2ebc98;
-  --warning: #f4c45d;
-  --danger: #ff7d88;
+  --background: #f6f8fb;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #eef6f4;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --brand: #2ebc98;
+  --brand-strong: #178f75;
+  --warning: #d99b24;
+  --danger: #dc4c64;
 }
 
 * { box-sizing: border-box; }
 html { background: var(--background); }
 body {
   margin: 0;
-  background: radial-gradient(circle at 80% 0%, rgba(46, 188, 152, 0.08), transparent 32rem), var(--background);
+  background: var(--background);
   color: var(--text);
   font-family: var(--font-geist-sans), Arial, sans-serif;
 }
 button,a,input,select,textarea { font: inherit; }
-::selection { background: rgba(88, 211, 178, 0.3); }
+button { cursor: pointer; }
+input, select, textarea {
+  color: var(--text);
+  background: #fff;
+}
+::placeholder { color: #94a3b8; }
+::selection { background: rgba(46, 188, 152, 0.2); }
+
+.app-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.app-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.app-input:focus {
+  border-color: rgba(46, 188, 152, 0.8);
+  box-shadow: 0 0 0 3px rgba(46, 188, 152, 0.12);
+}
