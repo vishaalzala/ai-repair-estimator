@@ -38,8 +38,15 @@ export const INSURANCE_CUSTOMERS = [
 
 export type InsuranceCustomer = (typeof INSURANCE_CUSTOMERS)[number];
 
+const insuranceCustomerSet = new Set<string>(INSURANCE_CUSTOMERS);
+
+export function normalizeInsuranceCustomer(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  return insuranceCustomerSet.has(normalized) ? normalized : "";
+}
+
 export function defaultWorkSourceForInsurer(insurerName: string) {
-  const normalized = insurerName.trim();
+  const normalized = normalizeInsuranceCustomer(insurerName);
   if (!normalized) return "";
   return normalized === PRIVATE_JOB_OPTION ? "Private" : "Insurance";
 }
