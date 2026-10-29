@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 
 export function Homepage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -8,12 +9,17 @@ export function Homepage() {
 
   return (
     <div className="repair-home">
-      <a href="#main" className="skip">
+      <Link prefetch={false} href="#main" className="skip">
         Skip to content
-      </a>
+      </Link>
       <header className="wrap">
         <nav className="nav" aria-label="Main navigation">
-          <a href="/" className="brand" aria-label="AI Repair Estimator home">
+          <Link
+            prefetch={false}
+            href="/"
+            className="brand"
+            aria-label="AI Repair Estimator home"
+          >
             <span className="mark">
               <svg
                 width="23"
@@ -34,24 +40,32 @@ export function Homepage() {
               repair<span style={{ color: "var(--green)" }}>estimator</span>
               <small>AI ASSISTED. HUMAN FOCUSED.</small>
             </span>
-          </a>
+          </Link>
           <div
             className={`navlinks${menuOpen ? " open" : ""}`}
             onClick={() => setMenuOpen(false)}
             id="navigation"
           >
-            <a href="#how-it-works">How it works</a>
-            <a href="#sample-report">Sample report</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#faqs">FAQs</a>
+            <Link prefetch={false} href="#how-it-works">
+              How it works
+            </Link>
+            <Link prefetch={false} href="#sample-report">
+              Sample report
+            </Link>
+            <Link prefetch={false} href="#pricing">
+              Pricing
+            </Link>
+            <Link prefetch={false} href="#faqs">
+              FAQs
+            </Link>
           </div>
           <div className="nav-actions">
-            <a className="login" href="/login">
+            <Link prefetch={false} className="login" href="/login">
               Log in
-            </a>
-            <a className="btn dark" href="/jobs/new">
+            </Link>
+            <Link prefetch={false} className="btn dark" href="/jobs/new">
               Get an estimate <span>↗</span>
-            </a>
+            </Link>
             <button
               className="menu"
               aria-label={menuOpen ? "Close navigation" : "Open navigation"}
@@ -83,12 +97,16 @@ export function Homepage() {
                 Upload your photos and explore an AI-assisted repair estimate.
               </p>
               <div className="hero-actions">
-                <a className="btn" href="/jobs/new">
+                <Link prefetch={false} className="btn" href="/jobs/new">
                   Get my estimate <span>↗</span>
-                </a>
-                <a className="text-link" href="#sample-report">
+                </Link>
+                <Link
+                  prefetch={false}
+                  className="text-link"
+                  href="#sample-report"
+                >
                   <span className="play">▶</span> See a sample report
-                </a>
+                </Link>
               </div>
               <div className="micro">
                 <span>
@@ -557,9 +575,9 @@ export function Homepage() {
                   <b>✓</b> Return to your report anytime in your account
                 </li>
               </ul>
-              <a className="btn dark" href="/jobs/new">
+              <Link prefetch={false} className="btn dark" href="/jobs/new">
                 Start my estimate <span>↗</span>
-              </a>
+              </Link>
               <p className="price-foot">Free signup. No subscription.</p>
             </div>
           </section>
@@ -627,26 +645,34 @@ export function Homepage() {
               <h2>Take the guesswork out of what’s next.</h2>
               <p>Start with your photos. Get a little more clarity.</p>
             </div>
-            <a href="/jobs/new" className="btn">
+            <Link prefetch={false} href="/jobs/new" className="btn">
               Get my estimate <span>↗</span>
-            </a>
+            </Link>
           </section>
           <footer>
             <div className="footer">
               <div>
-                <a className="brand" href="/">
+                <Link prefetch={false} className="brand" href="/">
                   <span style={{ color: "var(--green)", fontSize: "22px" }}>
                     ◈
                   </span>{" "}
                   repairestimator
-                </a>
+                </Link>
                 <p>A clearer starting point for vehicle repairs.</p>
               </div>
               <div className="footer-links">
-                <a href="#how-it-works">How it works</a>
-                <a href="#pricing">Pricing</a>
-                <a href="#faqs">FAQs</a>
-                <a href="/login">Log in ↗</a>
+                <Link prefetch={false} href="#how-it-works">
+                  How it works
+                </Link>
+                <Link prefetch={false} href="#pricing">
+                  Pricing
+                </Link>
+                <Link prefetch={false} href="#faqs">
+                  FAQs
+                </Link>
+                <Link prefetch={false} href="/login">
+                  Log in ↗
+                </Link>
               </div>
             </div>
             <div className="footer-bottom">
