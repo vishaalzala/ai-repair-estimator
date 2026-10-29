@@ -66,4 +66,6 @@ export async function updateCustomer(formData: FormData) {
   }
 
   revalidatePath("/customers");
+  revalidatePath(`/customers/${customerId}`);
+  if (value(formData, "return_to") === "profile") redirect(`/customers/${customerId}?message=Customer%20updated`);
 }
