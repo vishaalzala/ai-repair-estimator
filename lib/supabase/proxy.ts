@@ -40,8 +40,8 @@ function redirectLegacyAliasToCanonical(request: NextRequest) {
 
 function redirectToLogin(request: NextRequest, reason?: string) {
   const url = request.nextUrl.clone();
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
-  url.pathname = isAdminRoute ? "/admin/login" : "/login";
+  const isAdminRoute = (request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname.startsWith("/smartadmin"));
+  url.pathname = isAdminRoute ? "/smartadmin/login" : "/login";
   if (reason) url.searchParams.set("setup", reason);
   else if (!isAdminRoute) url.searchParams.set("next", request.nextUrl.pathname);
   return privateNoStore(NextResponse.redirect(url));
@@ -109,6 +109,7 @@ export async function updateSession(request: NextRequest) {
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
     pathname === "/admin/login" ||
+    pathname === "/smartadmin/login" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/api/health") ||

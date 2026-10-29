@@ -28,6 +28,9 @@ export default async function AdminSettingsPage() {
           <p>OpenAI API: {process.env.OPENAI_API_KEY ? "Configured" : "Missing"}</p>
           <p>Stripe API: {process.env.STRIPE_SECRET_KEY ? "Configured" : "Missing"}</p>
           <p>Stripe webhook: {process.env.STRIPE_WEBHOOK_SECRET ? "Configured" : "Missing"}</p>
+          <p>SMS / Twilio: {process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER ? "Configured" : "Not configured — SMS sending unavailable"}</p>
+          <p>Email / Resend: {process.env.RESEND_API_KEY && process.env.MESSAGING_FROM_EMAIL ? "Configured" : "Not configured — email sending unavailable"}</p>
+          <p>Outbound communication logs are available in each organization’s Communications page. Provider acceptance is not delivery confirmation.</p>
           <p>Supabase secret key: {process.env.SUPABASE_SECRET_KEY ? "Configured" : "Not configured (optional)"}</p>
         </div>
       </section>

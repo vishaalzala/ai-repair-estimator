@@ -7,23 +7,23 @@ import { Activity, BadgeDollarSign, BookOpenText, Bot, Building2, CircleGauge, C
 import { adminSignOut } from "@/app/admin/login/actions";
 
 const nav = [
-  { href: "/admin", label: "Dashboard", icon: CircleGauge },
-  { href: "/admin/organizations", label: "Organizations", icon: Building2 },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/estimates", label: "Estimates", icon: FileText },
-  { href: "/admin/knowledge", label: "AI Knowledge", icon: BookOpenText },
-  { href: "/admin/learning", label: "Learning Queue", icon: ClipboardList },
-  { href: "/admin/ai", label: "AI Configuration", icon: Bot },
-  { href: "/admin/usage", label: "Usage & Costs", icon: Gauge },
-  { href: "/admin/plans", label: "Plans", icon: BadgeDollarSign },
-  { href: "/admin/billing", label: "Billing", icon: CreditCard },
-  { href: "/admin/system", label: "System", icon: Activity },
-  { href: "/admin/audit", label: "Audit Logs", icon: ShieldCheck },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/smartadmin", label: "Dashboard", icon: CircleGauge },
+  { href: "/smartadmin/organizations", label: "Organizations", icon: Building2 },
+  { href: "/smartadmin/users", label: "Users", icon: Users },
+  { href: "/smartadmin/estimates", label: "Estimates", icon: FileText },
+  { href: "/smartadmin/knowledge", label: "AI Knowledge", icon: BookOpenText },
+  { href: "/smartadmin/learning", label: "Learning Queue", icon: ClipboardList },
+  { href: "/smartadmin/ai", label: "AI Configuration", icon: Bot },
+  { href: "/smartadmin/usage", label: "Usage & Costs", icon: Gauge },
+  { href: "/smartadmin/plans", label: "Plans", icon: BadgeDollarSign },
+  { href: "/smartadmin/billing", label: "Billing", icon: CreditCard },
+  { href: "/smartadmin/system", label: "System", icon: Activity },
+  { href: "/smartadmin/audit", label: "Audit Logs", icon: ShieldCheck },
+  { href: "/smartadmin/settings", label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return href === "/smartadmin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function AdminNavigation({ pathname, close }: { pathname: string; close?: () => void }) {
@@ -55,5 +55,5 @@ export function AdminShell({ children, role }: { children: React.ReactNode; role
 }
 
 function AdminBrand({ compact = false }: { compact?: boolean }) {
-  return <Link href="/admin" className={`${compact ? "mb-0" : "mb-6"} flex items-center gap-3`}><span className="grid size-10 place-items-center rounded-xl bg-[var(--brand)] text-[#05291f]"><ShieldCheck className="size-5" /></span><span><strong className="block text-sm text-[var(--text)]">RepairQuote AI</strong><span className="text-xs text-[var(--muted)]">Super Admin</span></span></Link>;
+  return <Link href="/smartadmin" className={`${compact ? "mb-0" : "mb-6"} flex items-center gap-3`}><span className="grid size-10 place-items-center rounded-xl bg-[var(--brand)] text-[#05291f]"><ShieldCheck className="size-5" /></span><span><strong className="block text-sm text-[var(--text)]">RepairQuote AI</strong><span className="text-xs text-[var(--muted)]">Super Admin</span></span></Link>;
 }

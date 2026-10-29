@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Boxes, CalendarDays, Camera, CarFront, ClipboardList, FileText, FolderOpen, History, Pencil, Shield, Sparkles, UserRound } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { updateJobOverview } from "./actions";
+import { updateJobStages } from "./stage-actions";
+import { quoteStates, repairStates } from "@/lib/workflow/quote-repair-status";
 
 function text(value: string | null | undefined) {
   return value?.trim() || "—";
@@ -21,6 +23,7 @@ const tabs = [
   { label: "Estimate", icon: FileText, suffix: "/estimate" },
   { label: "Review", icon: Sparkles, suffix: "/ai-review" },
   { label: "Parts", icon: Boxes, suffix: "/parts" },
+  { label: "Messages", icon: FileText, suffix: "/messages" },
   { label: "Supplements", icon: FileText, suffix: "/supplements" },
   { label: "Notes", icon: FileText, suffix: "/notes" },
   { label: "Tasks", icon: CalendarDays, suffix: "/daily-tasks" },
@@ -40,7 +43,7 @@ export default async function JobOverviewPage({
 
   const { data: job } = await supabase
     .from("jobs")
-    .select("id, job_number, status, customer_id, vehicle_id, branch_id, assigned_to, job_reference, repair_type, repair_size, work_source, created_at, updated_at")
+    .select("id, job_number, status, quote_status, repair_status, customer_id, vehicle_id, branch_id, assigned_to, job_reference, repair_type, repair_size, work_source, created_at, updated_at")
     .eq("organization_id", organizationId)
     .eq("id", id)
     .maybeSingle();
@@ -73,12 +76,13 @@ export default async function JobOverviewPage({
   const vehicleTitle = [vehicle?.model_year, vehicle?.make, vehicle?.model, vehicle?.variant].filter(Boolean).join(" ") || "Vehicle details pending";
   const customerName = customer?.business_name || [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || "Customer pending";
   const updateAction = updateJobOverview.bind(null, job.id);
+  const progressAction = updateJobStages.bind(null,job.id);
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-6 sm:px-7 lg:px-9 lg:py-8">
       <Link href="/jobs" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><ArrowLeft className="size-4" /> Back to jobs</Link>
 
-      {query.saved ? <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Job details saved successfully.</div> : null}
+      {query.saved ? <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{query.saved === "Progress updated" ? "Quotation and repair progress updated." : "Job details saved."}</div> : null}
       {query.error ? <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{query.error}</div> : null}
 
       <header className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -90,6 +94,9 @@ export default async function JobOverviewPage({
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium">{statusLabel(job.status)}</span>
           {canEdit ? <Link href={`/jobs/${job.id}?edit=1#edit-job`} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)]"><Pencil className="size-4" /> Edit details</Link> : null}
+          {job.customer_id ? <Link href={`/customers/${job.customer_id}`} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--surface-2)]">Customer profile</Link> : null}
+          <Link href={`/jobs/${job.id}/messages?channel=sms`} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--surface-2)]">Send SMS</Link>
+          <Link href={`/jobs/${job.id}/messages?channel=email`} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--surface-2)]">Send Email</Link>
           <Link href={`/jobs/${job.id}/photos`} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[#05291f]"><Camera className="size-4" /> Add photos</Link>
         </div>
       </header>
@@ -97,6 +104,20 @@ export default async function JobOverviewPage({
       <nav className="mb-5 flex gap-1 overflow-x-auto rounded-2xl border border-[var(--border)] bg-white p-1.5 shadow-sm">
         {tabs.map((tab, index) => { const Icon = tab.icon; return <Link key={tab.label} href={`/jobs/${job.id}${tab.suffix}`} className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-medium transition ${index === 0 ? "bg-[var(--surface-3)] text-[var(--brand-strong)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"}`}><Icon className="size-4" /> {tab.label}</Link>; })}
       </nav>
+
+      <section className="mb-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <h2 className="font-semibold">Quotation and production progress</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">Quotation authorisation is separate from workshop repair status. Changes are saved to the job activity history.</p>
+        <form action={progressAction} className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="grid min-w-[210px] flex-1 gap-1 text-xs text-[var(--muted)]">Quotation progress
+            <select name="quote_status" defaultValue={job.quote_status} disabled={!canEdit} className="app-input">{quoteStates.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>
+          </label>
+          <label className="grid min-w-[210px] flex-1 gap-1 text-xs text-[var(--muted)]">Repair progress
+            <select name="repair_status" defaultValue={job.repair_status} disabled={!canEdit} className="app-input">{repairStates.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>
+          </label>
+          {canEdit ? <button type="submit" className="rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-[#06110e]">Save progress</button> : null}
+        </form>
+      </section>
 
       {canEdit ? (
         <details id="edit-job" open={query.edit === "1"} className="mb-5 overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm">

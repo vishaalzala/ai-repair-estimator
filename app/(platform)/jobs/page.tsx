@@ -12,14 +12,14 @@ function labelStatus(status: string) {
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; view?: string }>;
 }) {
-  const { q = "" } = await searchParams;
+  const { q = "", view = "all" } = await searchParams;
   const { supabase, organizationId } = await requireOrganizationContext();
 
   const { data: jobsData, error } = await supabase
     .from("jobs")
-    .select("id, job_number, status, customer_id, vehicle_id, job_reference, updated_at")
+    .select("id, job_number, status, quote_status, repair_status, customer_id, vehicle_id, job_reference, updated_at")
     .eq("organization_id", organizationId)
     .order("updated_at", { ascending: false })
     .limit(100);
@@ -63,7 +63,8 @@ export default async function JobsPage({
 
       return { job, vehicle, claim, customerName, vehicleName, searchable };
     })
-    .filter((row) => !normalizedQuery || row.searchable.includes(normalizedQuery));
+    .filter((row) => !normalizedQuery || row.searchable.includes(normalizedQuery))
+    .filter(({job}) => view === "all" || (view === "in_progress" && ["repair_underway","outwork","quality_check"].includes(job.repair_status)) || (view === "parts" && job.repair_status === "awaiting_parts") || (view === "completed" && ["repair_complete","delivered"].includes(job.repair_status)) || (view === "not_started" && job.repair_status === "not_started"));
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-6 sm:px-7 lg:px-9 lg:py-8">
@@ -72,8 +73,9 @@ export default async function JobsPage({
         <Link href="/jobs/new" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[#06110e]"><Plus className="size-4" /> New assessment</Link>
       </div>
 
-      <section className="mt-7 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-        <form className="border-b border-[var(--border)] p-4" method="get">
+      <div className="mt-5 flex flex-wrap gap-2">{[{value:"all",label:"All jobs"},{value:"not_started",label:"Not started"},{value:"in_progress",label:"In production"},{value:"parts",label:"Awaiting parts"},{value:"completed",label:"Completed"}].map((item)=><Link key={item.value} href={`/jobs?view=${item.value}`} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${view===item.value?"border-[var(--brand)] text-[var(--brand)] bg-[var(--surface-3)]":"border-[var(--border)] text-[var(--muted)]"}`}>{item.label} · {item.value==="all"?jobs.length:jobs.filter((job)=>item.value==="in_progress"?["repair_underway","outwork","quality_check"].includes(job.repair_status):job.repair_status===(item.value==="parts"?"awaiting_parts":item.value==="completed"?"repair_complete":item.value)).length}</Link>)}</div>
+      <section className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+        <form className="border-b border-[var(--border)] p-4" method="get"><input type="hidden" name="view" value={view} />
           <label className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[#091322] px-4 py-3"><Search className="size-4 text-[var(--muted)]" /><input name="q" defaultValue={q} className="w-full bg-transparent text-sm outline-none placeholder:text-[var(--muted)]" placeholder="Search job, claim, rego, VIN or customer…" /></label>
         </form>
 
@@ -84,7 +86,7 @@ export default async function JobsPage({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="bg-[#0a1423] text-xs uppercase tracking-wide text-[var(--muted)]"><tr><th className="px-5 py-3 font-medium">Job</th><th className="px-5 py-3 font-medium">Vehicle</th><th className="px-5 py-3 font-medium">Customer</th><th className="px-5 py-3 font-medium">Claim</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 font-medium">Updated</th></tr></thead>
+              <thead className="bg-[#0a1423] text-xs uppercase tracking-wide text-[var(--muted)]"><tr><th className="px-5 py-3 font-medium">Job</th><th className="px-5 py-3 font-medium">Vehicle</th><th className="px-5 py-3 font-medium">Customer</th><th className="px-5 py-3 font-medium">Claim</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 font-medium">Quote</th><th className="px-5 py-3 font-medium">Repair</th><th className="px-5 py-3 font-medium">Actions</th><th className="px-5 py-3 font-medium">Updated</th></tr></thead>
               <tbody>
                 {rows.map(({ job, vehicle, claim, customerName, vehicleName }) => (
                   <tr key={job.id} className="border-t border-[var(--border)]/70 transition hover:bg-[var(--surface-2)]/60">
@@ -93,6 +95,9 @@ export default async function JobsPage({
                     <td className="px-5 py-4 text-[var(--muted)]">{customerName}</td>
                     <td className="px-5 py-4 text-[var(--muted)]">{claim?.claim_number || "—"}</td>
                     <td className="px-5 py-4"><span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs">{labelStatus(job.status)}</span></td>
+                    <td className="px-5 py-4 text-xs capitalize text-[var(--muted)]">{job.quote_status?.replaceAll("_"," ") || "Awaiting quoting"}</td>
+                    <td className="px-5 py-4 text-xs capitalize text-[var(--muted)]">{job.repair_status?.replaceAll("_"," ") || "Not started"}</td>
+                    <td className="px-5 py-4"><div className="flex gap-3 text-xs"><Link href={`/jobs/${job.id}`} className="font-semibold text-[var(--brand)]">Edit job</Link><Link href={`/jobs/${job.id}/estimate`} className="text-[var(--brand)]">Estimate</Link><Link href={`/jobs/${job.id}/messages`} className="text-[var(--brand)]">Message</Link></div></td>
                     <td className="px-5 py-4 text-xs text-[var(--muted)]">{new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(job.updated_at))}</td>
                   </tr>
                 ))}

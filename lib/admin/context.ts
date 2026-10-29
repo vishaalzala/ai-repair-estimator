@@ -8,7 +8,7 @@ export async function requirePlatformAdmin() {
   const { data: authData } = await supabase.auth.getClaims();
   const userId = authData?.claims?.sub;
 
-  if (!userId) redirect("/admin/login");
+  if (!userId) redirect("/smartadmin/login");
 
   const { data: admin } = await supabase
     .from("platform_admins")
@@ -18,7 +18,7 @@ export async function requirePlatformAdmin() {
     .maybeSingle();
 
   if (!admin) {
-    redirect("/admin/login?error=This%20account%20does%20not%20have%20platform%20administrator%20access");
+    redirect("/smartadmin/login?error=This%20account%20does%20not%20have%20platform%20administrator%20access");
   }
 
   return {

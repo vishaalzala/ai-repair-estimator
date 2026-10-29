@@ -29,27 +29,27 @@ function customerPayload(formData: FormData) {
 
 function validCustomer(payload: ReturnType<typeof customerPayload>) {
   if (payload.customer_type === "business") return Boolean(payload.business_name);
-  return Boolean(payload.first_name || payload.last_name || payload.email || payload.phone);
+  return Boolean(payload.first_name || payload.last_name);
 }
 
 export async function createCustomer(formData: FormData) {
   const { supabase, organizationId, userId } = await requireOrganizationContext();
   const payload = customerPayload(formData);
-  if (!validCustomer(payload)) redirect("/customers?error=Add%20a%20customer%20name,%20business%20name,%20email%20or%20phone");
+  if (!validCustomer(payload)) redirect("/customers?error=Enter%20a%20name%20for%20an%20individual%20or%20business%20name%20for%20a%20business");
 
-  const { error } = await supabase.from("customers").insert({
+  const { data: created, error } = await supabase.from("customers").insert({
     organization_id: organizationId,
     ...payload,
     created_by: userId,
-  });
+  }).select("id").single();
 
-  if (error) {
-    console.error("Customer create failed", error.code);
+  if (error || !created) {
+    console.error("Customer create failed", error?.code ?? "unknown");
     redirect("/customers?error=Unable%20to%20create%20the%20customer");
   }
 
   revalidatePath("/customers");
-  redirect("/customers?message=Customer%20created");
+  redirect(`/customers/${created.id}?message=Customer%20created`);
 }
 
 export async function updateCustomer(formData: FormData) {
@@ -66,4 +66,6 @@ export async function updateCustomer(formData: FormData) {
   }
 
   revalidatePath("/customers");
+  revalidatePath(`/customers/${customerId}`);
+  if (value(formData, "return_to") === "profile") redirect(`/customers/${customerId}?message=Customer%20updated`);
 }

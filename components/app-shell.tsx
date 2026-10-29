@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Boxes, CalendarDays, CarFront, CircleGauge, CreditCard, FileText, LogOut, Menu, Search, Settings, UserRound, Users, X } from "lucide-react";
+import { Boxes, CalendarDays, CarFront, CircleGauge, CreditCard, FileText, MessageSquare, LogOut, Menu, Search, Settings, UserRound, Users, X } from "lucide-react";
 import { signOut } from "@/lib/auth/actions";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: CircleGauge },
   { href: "/jobs", label: "Jobs", icon: CarFront },
   { href: "/daily-jobs", label: "Daily Jobs", icon: CalendarDays },
+  { href: "/quotes", label: "Quotes", icon: FileText },
   { href: "/parts", label: "Parts", icon: Boxes },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/communications", label: "Communications", icon: MessageSquare },
   { href: "/reports", label: "Reports", icon: FileText },
   { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },

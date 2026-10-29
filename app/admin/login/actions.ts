@@ -10,11 +10,11 @@ function enc(value: string) {
 export async function adminSignIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  if (!email || !password) redirect(`/admin/login?error=${enc("Email and password are required")}`);
+  if (!email || !password) redirect(`/smartadmin/login?error=${enc("Email and password are required")}`);
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error || !data.user) redirect(`/admin/login?error=${enc("Unable to sign in with those details")}`);
+  if (error || !data.user) redirect(`/smartadmin/login?error=${enc("Unable to sign in with those details")}`);
 
   const { data: admin } = await supabase
     .from("platform_admins")
@@ -25,7 +25,7 @@ export async function adminSignIn(formData: FormData) {
 
   if (!admin) {
     await supabase.auth.signOut();
-    redirect(`/admin/login?error=${enc("This account is not authorised for Super Admin")}`);
+    redirect(`/smartadmin/login?error=${enc("This account is not authorised for Super Admin")}`);
   }
 
   const [touchResult, auditResult] = await Promise.all([
@@ -46,7 +46,7 @@ export async function adminSignIn(formData: FormData) {
     console.error("Unable to record platform admin login audit", auditResult.error.code);
   }
 
-  redirect("/admin");
+  redirect("/smartadmin");
 }
 
 export async function adminSignOut() {
@@ -56,5 +56,5 @@ export async function adminSignOut() {
     await supabase.from("platform_audit_logs").insert({ actor_user_id: auth.user.id, action: "admin_logout", entity_type: "platform_admin", entity_id: auth.user.id });
   }
   await supabase.auth.signOut();
-  redirect("/admin/login");
+  redirect("/smartadmin/login");
 }
