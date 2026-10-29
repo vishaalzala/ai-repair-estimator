@@ -5,7 +5,7 @@ import { adminSignIn } from "./actions";
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const existing = await getPlatformAdminIfSignedIn();
-  if (existing) redirect("/admin");
+  if (existing) redirect("/smartadmin");
   const { error } = await searchParams;
 
   return (
