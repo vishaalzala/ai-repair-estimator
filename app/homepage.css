@@ -1,0 +1,1206 @@
+.repair-home {
+  --ink: #202a28;
+  --muted: #69716b;
+  --paper: #fafaf6;
+  --orange: #db5a35;
+  --line: #e2e5db;
+  --green: #365c4a;
+  --cream: #eeefe5;
+}
+.repair-home * {
+  box-sizing: border-box;
+}
+.repair-home {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+.repair-home {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--font-home-body), Arial, sans-serif;
+  font-size: 18px;
+  -webkit-font-smoothing: antialiased;
+}
+.repair-home button,
+.repair-home a {
+  -webkit-tap-highlight-color: transparent;
+}
+.repair-home button {
+  font: inherit;
+}
+.repair-home a {
+  color: inherit;
+  text-decoration: none;
+}
+.repair-home button,
+.repair-home a,
+.repair-home summary {
+  outline-offset: 5px;
+}
+.repair-home button:focus-visible,
+.repair-home a:focus-visible,
+.repair-home summary:focus-visible {
+  outline: 2px solid var(--orange);
+}
+.repair-home .wrap {
+  max-width: 1240px;
+  padding: 0 40px;
+  margin: auto;
+}
+.repair-home .nav {
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+.repair-home .brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-family: var(--font-home-heading), Arial, sans-serif;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+}
+.repair-home .mark {
+  width: 35px;
+  height: 35px;
+  border-radius: 11px;
+  background: var(--green);
+  color: white;
+  display: grid;
+  place-items: center;
+}
+.repair-home .brand small {
+  font:
+    500 11px var(--font-home-body),
+    sans-serif;
+  letter-spacing: 2px;
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.repair-home .navlinks {
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 500;
+}
+.repair-home .navlinks a:hover,
+.repair-home .footer a:hover {
+  color: var(--orange);
+}
+.repair-home .nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.repair-home .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 16px 23px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--orange);
+  color: white;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 600;
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+.repair-home .btn:hover {
+  background: #c24826;
+  transform: translateY(-2px);
+}
+.repair-home .btn.dark {
+  background: var(--ink);
+}
+.repair-home .btn.dark:hover {
+  background: var(--green);
+}
+.repair-home .nav .btn {
+  padding: 12px 18px;
+}
+.repair-home .hero {
+  padding: 52px 0 48px;
+  display: grid;
+  grid-template-columns: 0.94fr 1.06fr;
+  align-items: center;
+  gap: 20px;
+}
+.repair-home .eyebrow {
+  font-size: 13px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.repair-home .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--orange);
+  border-radius: 50%;
+  display: inline-block;
+}
+.repair-home .hero h1 {
+  font-family: var(--font-home-heading), Arial, sans-serif;
+  font-size: clamp(43px, 4.45vw, 62px);
+  font-weight: 500;
+  letter-spacing: -3px;
+  line-height: 1.12;
+  margin: 22px 0;
+}
+.repair-home .hero h1 em {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  color: var(--green);
+}
+.repair-home .lead {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.8;
+  max-width: 415px;
+  margin: 0 0 26px;
+}
+.repair-home .hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.repair-home .text-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.repair-home .play {
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+.repair-home .micro {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 20px;
+}
+.repair-home .micro span {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.repair-home .micro b {
+  color: var(--green);
+}
+.repair-home .hero-art {
+  height: 465px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.repair-home .art-bg {
+  position: absolute;
+  inset: 10px 0 4px 16px;
+  border-radius: 50% 50% 40% 40%;
+  background: radial-gradient(
+    ellipse,
+    #e6e9dd 0%,
+    #f0f1e8 45%,
+    transparent 72%
+  );
+}
+.repair-home .art-grid {
+  position: absolute;
+  inset: 30px 0;
+  background-image:
+    linear-gradient(#e1e5d930 1px, transparent 1px),
+    linear-gradient(90deg, #e1e5d930 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse, black, transparent 67%);
+}
+.repair-home .car {
+  width: 112%;
+  max-width: 700px;
+  position: relative;
+  margin-top: -5px;
+}
+.repair-home .scan-label {
+  position: absolute;
+  top: 43px;
+  left: 52px;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.repair-home .bracket {
+  position: absolute;
+  inset: 90px 32px 99px;
+  border: 1px solid #b5bead66;
+  border-radius: 18px;
+  pointer-events: none;
+}
+.repair-home .float {
+  position: absolute;
+  background: #fffefb;
+  border: 1px solid #e2e5da;
+  box-shadow: 0 15px 35px #3540340b;
+  border-radius: 10px;
+  padding: 14px 17px;
+}
+.repair-home .damage {
+  right: 1px;
+  top: 91px;
+  width: 167px;
+  font-size: 14px;
+}
+.repair-home .damage strong {
+  display: flex;
+  gap: 7px;
+  font-weight: 600;
+}
+.repair-home .damage small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+.repair-home .statusdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--orange);
+  margin-top: 4px;
+}
+.repair-home .estimate {
+  left: 33px;
+  bottom: 18px;
+  width: 210px;
+}
+.repair-home .estimate-top {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  display: flex;
+  justify-content: space-between;
+}
+.repair-home .estimate-price {
+  font-family: var(--font-home-heading), sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  margin: 8px 0;
+}
+.repair-home .estimate-bottom {
+  font-size: 12px;
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.repair-home .illustrative {
+  position: absolute;
+  bottom: 4px;
+  right: 17px;
+  font-size: 12px;
+  color: #899080;
+}
+.repair-home .trust {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 22px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 16px;
+  color: #59665c;
+}
+.repair-home .trust span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.repair-home .trust svg {
+  width: 19px;
+  height: 19px;
+  stroke: var(--green);
+  fill: none;
+  stroke-width: 1.5;
+}
+.repair-home .section {
+  padding: 85px 0;
+}
+.repair-home .section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px;
+  align-items: end;
+  margin-bottom: 38px;
+}
+.repair-home h2 {
+  font-family: var(--font-home-heading), Arial, sans-serif;
+  font-weight: 500;
+  letter-spacing: -1.7px;
+  font-size: 40px;
+  line-height: 1.25;
+  margin: 14px 0 0;
+}
+.repair-home .section-head > p {
+  max-width: 290px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.8;
+  margin: 0;
+}
+.repair-home .steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 45px;
+}
+.repair-home .step-num {
+  font-family: var(--font-home-heading), sans-serif;
+  font-size: 16px;
+  color: var(--orange);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+.repair-home .step-num:after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+  flex: 1;
+}
+.repair-home .step-icon {
+  width: 41px;
+  height: 41px;
+  border-radius: 10px;
+  background: var(--cream);
+  display: grid;
+  place-items: center;
+  margin-bottom: 15px;
+}
+.repair-home .step-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 1.5;
+}
+.repair-home .steps h3 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+  margin: 0 0 12px;
+}
+.repair-home .steps p {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.8;
+  margin: 0;
+  max-width: 290px;
+}
+.repair-home .report-section {
+  background: #eff0e8;
+  padding: 70px 0;
+}
+.repair-home .report-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 100px;
+  align-items: center;
+}
+.repair-home .report-copy p {
+  font-size: 17px;
+  line-height: 1.9;
+  color: var(--muted);
+  max-width: 385px;
+}
+.repair-home .checks {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 15px;
+  font-size: 16px;
+  margin: 26px 0;
+}
+.repair-home .checks li {
+  display: flex;
+  gap: 10px;
+}
+.repair-home .checks b {
+  color: var(--green);
+  font-weight: 500;
+}
+.repair-home .subtle-link {
+  display: inline-flex;
+  gap: 24px;
+  border-bottom: 1px solid #bdc7ba;
+  padding: 10px 0;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+}
+.repair-home .report-paper {
+  background: #fffefb;
+  border: 1px solid #e3e6db;
+  border-radius: 9px;
+  padding: 28px;
+  box-shadow: 0 15px 35px #3c483a09;
+  transform: rotate(-2deg);
+}
+.repair-home .report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 19px;
+}
+.repair-home .tinybrand {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.repair-home .sample-tag {
+  font-size: 12px;
+  padding: 5px 7px;
+  background: #f1f2ec;
+  border-radius: 3px;
+  color: var(--muted);
+}
+.repair-home .report-paper h3 {
+  font-family: var(--font-home-heading), sans-serif;
+  font-size: 22px;
+  margin: 24px 0 5px;
+  letter-spacing: -0.7px;
+}
+.repair-home .vehicle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 22px;
+}
+.repair-home .line-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  padding: 13px 0;
+  border-top: 1px solid #eceee6;
+}
+.repair-home .line-item span:last-child {
+  font-weight: 600;
+}
+.repair-home .range {
+  background: #edf1e9;
+  border-radius: 5px;
+  padding: 15px;
+  margin-top: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--green);
+}
+.repair-home .range strong {
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+.repair-home .paper-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 13px 0 0;
+}
+.repair-home .pricing-layout {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 100px;
+  align-items: center;
+}
+.repair-home .pricing-copy p {
+  font-size: 17px;
+  color: var(--muted);
+  line-height: 1.9;
+  max-width: 370px;
+}
+.repair-home .photo-tip {
+  border-left: 2px solid var(--orange);
+  padding: 2px 0 2px 17px;
+  margin-top: 27px;
+  max-width: 380px;
+}
+.repair-home .photo-tip strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.repair-home .photo-tip p {
+  font-size: 16px;
+  margin: 6px 0;
+}
+.repair-home .price-card {
+  border: 1px solid #d9dfd1;
+  border-radius: 12px;
+  background: #fffefb;
+  padding: 33px;
+  position: relative;
+}
+.repair-home .price-card .eyebrow {
+  color: var(--green);
+  letter-spacing: 1.3px;
+}
+.repair-home .price-big {
+  font-family: var(--font-home-heading), sans-serif;
+  font-size: 58px;
+  letter-spacing: -3px;
+  margin: 18px 0 0;
+  line-height: 1;
+}
+.repair-home .price-big sup {
+  font-size: 24px;
+  vertical-align: top;
+  position: relative;
+  top: 8px;
+  letter-spacing: -1px;
+}
+.repair-home .tax-note {
+  font-size: 16px;
+  color: var(--muted);
+  margin: 12px 0 24px;
+}
+.repair-home .price-card .checks {
+  border-top: 1px solid var(--line);
+  padding-top: 23px;
+  font-size: 16px;
+  gap: 13px;
+}
+.repair-home .price-card .btn {
+  width: 100%;
+}
+.repair-home .price-foot {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin: 13px 0 0;
+}
+.repair-home .faq {
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 70px;
+  padding: 60px 0 80px;
+}
+.repair-home .faq h2 {
+  font-size: 34px;
+}
+.repair-home .faq-intro p {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.repair-home details {
+  border-bottom: 1px solid var(--line);
+}
+.repair-home summary {
+  padding: 20px 0;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+}
+.repair-home summary::-webkit-details-marker {
+  display: none;
+}
+.repair-home summary:after {
+  content: "+";
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 16px;
+}
+.repair-home details[open] summary:after {
+  content: "−";
+}
+.repair-home details p {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.9;
+  margin: 0 25px 20px 0;
+}
+.repair-home .last-cta {
+  background: var(--green);
+  color: #fffef4;
+  border-radius: 12px;
+  padding: 42px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  margin-bottom: 65px;
+}
+.repair-home .last-cta h2 {
+  font-size: 33px;
+  margin: 0;
+}
+.repair-home .last-cta p {
+  font-size: 16px;
+  opacity: 0.75;
+  margin: 12px 0 0;
+}
+.repair-home .last-cta .btn {
+  white-space: nowrap;
+}
+.repair-home .footer {
+  padding: 0 0 28px;
+  display: flex;
+  justify-content: space-between;
+  gap: 25px;
+  align-items: center;
+}
+.repair-home .footer .brand {
+  font-size: 18px;
+}
+.repair-home .footer p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 10px 0;
+}
+.repair-home .footer-links {
+  display: flex;
+  gap: 23px;
+  font-size: 14px;
+}
+.repair-home .footer-bottom {
+  border-top: 1px solid var(--line);
+  padding: 19px 0 28px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+  gap: 20px;
+}
+.repair-home .menu {
+  display: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 5px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.repair-home dialog {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 35px;
+  max-width: 460px;
+  width: calc(100% - 32px);
+  color: var(--ink);
+  background: var(--paper);
+}
+.repair-home dialog::backdrop {
+  background: #17251db3;
+  backdrop-filter: blur(4px);
+}
+.repair-home dialog h2 {
+  font-size: 30px;
+  margin: 12px 0;
+}
+.repair-home dialog p {
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.repair-home .close {
+  position: absolute;
+  right: 15px;
+  top: 10px;
+  font-size: 28px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.repair-home .dialog-note {
+  font-size: 14px !important;
+  border-top: 1px solid var(--line);
+  padding-top: 15px;
+}
+.repair-home .skip {
+  position: fixed;
+  top: -60px;
+  left: 20px;
+  z-index: 10;
+  background: white;
+  padding: 12px;
+}
+.repair-home .skip:focus {
+  top: 10px;
+}
+@media (min-width: 1500px) {
+  .repair-home .hero {
+    padding-top: 70px;
+    padding-bottom: 65px;
+  }
+}
+@media (max-width: 1000px) {
+  .repair-home .wrap {
+    padding: 0 28px;
+  }
+  .repair-home .navlinks {
+    gap: 18px;
+  }
+  .repair-home .nav {
+    height: 85px;
+  }
+  .repair-home .nav-actions {
+    gap: 14px;
+  }
+  .repair-home .hero h1 {
+    font-size: 52px;
+  }
+  .repair-home .hero {
+    gap: 0;
+  }
+  .repair-home .hero-art {
+    height: 420px;
+  }
+  .repair-home .damage {
+    right: -5px;
+    top: 75px;
+  }
+  .repair-home .scan-label {
+    left: 35px;
+  }
+  .repair-home .report-layout,
+  .repair-home .pricing-layout {
+    gap: 50px;
+  }
+  .repair-home .hero-actions {
+    gap: 12px;
+  }
+  .repair-home .hero-actions .btn {
+    padding: 16px;
+  }
+  .repair-home .text-link {
+    font-size: 14px;
+  }
+  .repair-home .trust {
+    font-size: 14px;
+  }
+}
+@media (max-width: 760px) {
+  .repair-home .wrap {
+    padding: 0 22px;
+  }
+  .repair-home .nav {
+    height: 80px;
+    position: relative;
+  }
+  .repair-home .brand {
+    font-size: 20px;
+  }
+  .repair-home .nav-actions .login {
+    display: none;
+  }
+  .repair-home .nav-actions .btn {
+    display: none;
+  }
+  .repair-home .menu {
+    display: block;
+  }
+  .repair-home .navlinks {
+    display: none;
+    position: absolute;
+    top: 70px;
+    left: 0;
+    right: 0;
+    background: var(--paper);
+    padding: 20px;
+    z-index: 5;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .repair-home .navlinks.open {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+  }
+  .repair-home .hero {
+    grid-template-columns: 1fr;
+    padding: 28px 0 35px;
+  }
+  .repair-home .hero h1 {
+    font-size: 50px;
+    letter-spacing: -2.4px;
+  }
+  .repair-home .hero .lead {
+    max-width: 460px;
+    font-size: 18px;
+  }
+  .repair-home .hero-actions {
+    gap: 22px;
+  }
+  .repair-home .hero-actions .btn {
+    padding: 16px 22px;
+  }
+  .repair-home .text-link {
+    font-size: 16px;
+  }
+  .repair-home .hero-art {
+    height: 360px;
+    margin-top: 25px;
+    max-width: 540px;
+    width: 100%;
+    justify-self: center;
+  }
+  .repair-home .car {
+    width: 108%;
+  }
+  .repair-home .scan-label {
+    top: 15px;
+    left: 20px;
+  }
+  .repair-home .damage {
+    right: 0;
+    top: 40px;
+    width: 155px;
+    padding: 12px;
+  }
+  .repair-home .estimate {
+    bottom: 10px;
+    left: 5px;
+    width: 185px;
+    padding: 13px;
+  }
+  .repair-home .estimate-price {
+    font-size: 25px;
+  }
+  .repair-home .illustrative {
+    bottom: 0;
+    right: 0;
+  }
+  .repair-home .bracket {
+    inset: 65px 20px 65px;
+  }
+  .repair-home .trust {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 19px;
+    font-size: 13px;
+    padding: 22px 0;
+  }
+  .repair-home .trust svg {
+    width: 17px;
+  }
+  .repair-home .section {
+    padding: 55px 0;
+  }
+  .repair-home .section-head {
+    display: block;
+    margin-bottom: 30px;
+  }
+  .repair-home .section-head > p {
+    margin-top: 20px;
+    max-width: 100%;
+  }
+  .repair-home h2 {
+    font-size: 35px;
+    letter-spacing: -1.4px;
+  }
+  .repair-home .steps {
+    gap: 23px;
+    grid-template-columns: 1fr;
+  }
+  .repair-home .step {
+    display: grid;
+    grid-template-columns: 50px 1fr;
+    column-gap: 12px;
+  }
+  .repair-home .step-num {
+    grid-column: 1/-1;
+    margin-bottom: 18px;
+  }
+  .repair-home .step-icon {
+    grid-row: 2/4;
+    margin: 0;
+  }
+  .repair-home .steps h3 {
+    font-size: 18px;
+  }
+  .repair-home .steps p {
+    max-width: 100%;
+    font-size: 16px;
+  }
+  .repair-home .report-layout,
+  .repair-home .pricing-layout {
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+  .repair-home .report-section {
+    padding: 50px 0;
+  }
+  .repair-home .report-copy p,
+  .repair-home .pricing-copy p {
+    max-width: 100%;
+  }
+  .repair-home .report-paper {
+    margin: 0 7px;
+    transform: rotate(-1deg);
+    padding: 23px;
+  }
+  .repair-home .pricing-copy .photo-tip {
+    max-width: 100%;
+  }
+  .repair-home .price-card {
+    padding: 27px;
+  }
+  .repair-home .faq {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 45px 0;
+  }
+  .repair-home .faq-intro p {
+    margin-bottom: 8px;
+  }
+  .repair-home .last-cta {
+    padding: 30px 25px;
+    display: block;
+    margin-bottom: 40px;
+  }
+  .repair-home .last-cta h2 {
+    font-size: 32px;
+  }
+  .repair-home .last-cta .btn {
+    margin-top: 22px;
+  }
+  .repair-home .footer {
+    align-items: start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .repair-home .footer-bottom {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .repair-home .micro {
+    gap: 12px;
+    font-size: 13px;
+  }
+  .repair-home .price-big {
+    font-size: 55px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .repair-home {
+    scroll-behavior: auto;
+  }
+  .repair-home * {
+    transition: none !important;
+  }
+}
+
+.repair-home {
+  min-height: 100vh;
+  line-height: 1.5;
+  --muted: #59645c;
+}
+.repair-home h1,
+.repair-home h2,
+.repair-home h3,
+.repair-home p {
+  font-style: normal;
+}
+.repair-home h1 em {
+  font-style: italic;
+}
+.repair-home a {
+  text-decoration: none;
+}
+.repair-home .navlinks,
+.repair-home .nav-actions {
+  font-size: 16px;
+}
+.repair-home .nav {
+  gap: 20px;
+  height: auto;
+  min-height: 110px;
+}
+.repair-home .navlinks {
+  gap: 22px;
+}
+.repair-home .lead {
+  font-size: 18px;
+}
+.repair-home .micro {
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.repair-home .eyebrow {
+  line-height: 1.6;
+}
+.repair-home .hero-actions {
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.repair-home .hero-art {
+  min-width: 0;
+}
+.repair-home .damage {
+  width: 200px;
+}
+.repair-home .estimate {
+  width: 260px;
+}
+.repair-home .estimate-price {
+  white-space: nowrap;
+}
+.repair-home .estimate-bottom {
+  line-height: 1.6;
+}
+.repair-home .report-layout,
+.repair-home .pricing-layout {
+  gap: 65px;
+}
+.repair-home .range {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.repair-home .line-item {
+  gap: 16px;
+}
+.repair-home .line-item span:last-child {
+  white-space: nowrap;
+}
+.repair-home dialog:not([open]) {
+  display: none;
+}
+.repair-home dialog {
+  margin: auto;
+}
+.repair-home .footer-links {
+  flex-wrap: wrap;
+}
+@media (max-width: 1100px) {
+  .repair-home .navlinks {
+    gap: 16px;
+  }
+  .repair-home .brand {
+    font-size: 18px;
+  }
+  .repair-home .nav-actions {
+    gap: 14px;
+  }
+  .repair-home .nav .btn {
+    gap: 10px;
+    padding: 12px;
+  }
+  .repair-home .nav {
+    flex-wrap: wrap;
+    padding: 20px 0;
+  }
+  .repair-home .navlinks {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
+@media (max-width: 760px) {
+  .repair-home .nav {
+    min-height: 90px;
+    flex-wrap: nowrap;
+  }
+  .repair-home .navlinks {
+    width: auto;
+    top: 80px;
+  }
+  .repair-home .navlinks a {
+    padding: 8px 0;
+  }
+  .repair-home .nav-actions .login {
+    display: inline-flex;
+  }
+  .repair-home .hero .lead {
+    font-size: 18px;
+  }
+  .repair-home .report-layout,
+  .repair-home .pricing-layout {
+    gap: 35px;
+  }
+  .repair-home .trust {
+    font-size: 14px;
+    align-items: start;
+  }
+  .repair-home .trust span {
+    align-items: start;
+  }
+  .repair-home .trust svg {
+    flex-shrink: 0;
+  }
+  .repair-home .scan-label {
+    font-size: 11px;
+    max-width: 230px;
+  }
+  .repair-home .damage {
+    width: 170px;
+    font-size: 13px;
+  }
+  .repair-home .damage small {
+    font-size: 12px;
+  }
+  .repair-home .estimate {
+    width: 235px;
+  }
+  .repair-home .illustrative {
+    bottom: -18px;
+    font-size: 12px;
+  }
+  .repair-home .hero-art {
+    margin-bottom: 20px;
+  }
+  .repair-home .hero h1 {
+    font-size: clamp(36px, 9vw, 50px);
+  }
+  .repair-home .last-cta h2 {
+    font-size: 30px;
+  }
+  .repair-home .menu {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .repair-home .footer-bottom {
+    font-size: 13px;
+  }
+}

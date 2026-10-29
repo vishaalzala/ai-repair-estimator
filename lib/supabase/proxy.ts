@@ -103,6 +103,7 @@ export async function updateSession(request: NextRequest) {
   let response = privateNoStore(NextResponse.next({ request }));
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
+    pathname === "/" ||
     pathname === "/login" ||
     pathname === "/signup" ||
     pathname === "/forgot-password" ||
@@ -118,6 +119,8 @@ export async function updateSession(request: NextRequest) {
 
   const authCodeRedirect = redirectAuthCodeToConfirm(request);
   if (authCodeRedirect) return authCodeRedirect;
+
+  if (pathname === "/") return response;
 
   const config = getProxySupabaseConfig();
 
