@@ -102,7 +102,7 @@ export default async function CustomersPage({
                   </summary>
                   <div className="border-t border-[var(--border)] bg-[#091322] p-5">
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Edit {name}</h3><p className="mt-1 text-xs text-[var(--muted)]">Updates are immediately available to linked workshop records.</p></div>{latestJob ? <Link href={`/jobs/${latestJob.id}`} className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--brand)]"><CarFront className="size-4" /> Open latest job</Link> : null}</div>
-                    <CustomerForm action={updateCustomer} customer={customer} customerId={customer.id} submitLabel="Save customer" />
+                    <div className="mb-3 flex flex-wrap gap-3"><Link className="text-sm font-semibold text-[var(--brand)] hover:underline" href={`/customers/${customer.id}`}>Open full customer profile</Link><Link className="text-sm font-semibold text-[var(--brand)] hover:underline" href={`/communications?customerId=${customer.id}&channel=sms`}>Send SMS</Link><Link className="text-sm font-semibold text-[var(--brand)] hover:underline" href={`/communications?customerId=${customer.id}&channel=email`}>Send Email</Link></div><CustomerForm action={updateCustomer} customer={customer} customerId={customer.id} submitLabel="Save customer" />
                   </div>
                 </details>
               );
