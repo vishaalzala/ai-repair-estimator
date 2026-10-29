@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FileText, Search } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
-import { quoteStates } from "@/app/(platform)/jobs/[id]/stage-actions";
+import { quoteStates } from "@/lib/workflow/quote-repair-status";
 
 function currency(amount: number, code: string) {
   return new Intl.NumberFormat("en-NZ", {style:"currency", currency:code}).format(amount);
