@@ -1,4 +1,5 @@
-import { sendWorkshopMessage, messagingAvailability } from "@/lib/communications/actions";
+import { sendWorkshopMessage } from "@/lib/communications/actions";
+import { messagingAvailability } from "@/lib/communications/config";
 
 type MessageRow = {
   id: string; channel: string; recipient: string; subject: string | null; body: string;
