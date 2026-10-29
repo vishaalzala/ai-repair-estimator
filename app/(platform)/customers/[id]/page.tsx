@@ -74,6 +74,7 @@ export default async function CustomerDetailPage({ params, searchParams }: {
                 <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-[var(--brand)]"><Pencil className="size-4" /> Edit customer</summary>
                 <form action={updateCustomer} className="mt-4 grid gap-3">
                   <input type="hidden" name="customer_id" value={customer.id} />
+                  <input type="hidden" name="return_to" value="profile" />
                   <input type="hidden" name="edit_request_key" value={editKey} />
                   <label className="grid gap-1 text-xs">Type<select name="customer_type" defaultValue={customer.customer_type} className={fieldClass}><option value="individual">Individual</option><option value="business">Business</option></select></label>
                   <label className="grid gap-1 text-xs">Business<input name="business_name" defaultValue={customer.business_name ?? ""} className={fieldClass}/></label>
