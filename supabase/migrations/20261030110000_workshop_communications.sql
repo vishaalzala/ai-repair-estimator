@@ -28,10 +28,11 @@ create policy workshop_messages_read on public.workshop_messages for select to a
 create policy workshop_messages_insert on public.workshop_messages for insert to authenticated
   with check (private.has_org_role(organization_id,array['owner','admin','manager','estimator','reviewer'])
     and created_by=auth.uid()
-    and (job_id is null or exists(select 1 from public.jobs j where j.id=job_id and j.organization_id=organization_id))
-    and (customer_id is null or exists(select 1 from public.customers c where c.id=customer_id and c.organization_id=organization_id)));
+    and (job_id is null or exists(select 1 from public.jobs j where j.id=job_id and j.organization_id=workshop_messages.organization_id))
+    and (customer_id is null or exists(select 1 from public.customers c where c.id=customer_id and c.organization_id=workshop_messages.organization_id))
+    and (job_id is null or customer_id is null or exists (select 1 from public.jobs j where j.id=job_id and j.customer_id=customer_id and j.organization_id=workshop_messages.organization_id)));
 create policy workshop_messages_update on public.workshop_messages for update to authenticated
   using (private.has_org_role(organization_id,array['owner','admin','manager','estimator','reviewer']) and created_by=auth.uid())
-  with check (private.has_org_role(organization_id,array['owner','admin','manager','estimator','reviewer']) and created_by=auth.uid());
--- Restrict direct client mutation of delivery facts. Only service backed authenticated server actions set them.
--- Future evolution: replace user-scoped updates with an elevated RPC and revoke UPDATE.
+  with check (private.has_org_role(organization_id,array['owner','admin','manager','estimator','reviewer']) and created_by=auth.uid()
+    and (job_id is null or exists(select 1 from public.jobs j where j.id=job_id and j.organization_id=workshop_messages.organization_id))
+    and (customer_id is null or exists(select 1 from public.customers c where c.id=customer_id and c.organization_id=workshop_messages.organization_id)));
