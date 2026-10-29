@@ -4,16 +4,10 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizationContext } from "@/lib/auth/context";
+import { messagingAvailability } from "@/lib/communications/config";
 
 const senderRoles = new Set(["owner","admin","manager","estimator","reviewer"]);
 type Channel = "sms" | "email";
-
-export function messagingAvailability() {
-  return {
-    sms: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER),
-    email: Boolean(process.env.RESEND_API_KEY && process.env.MESSAGING_FROM_EMAIL),
-  };
-}
 
 function normalisePhone(value: string): string | null {
   let phone = value.replace(/[\s()-]/g, "");
