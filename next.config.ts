@@ -24,6 +24,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      { source: "/smartadmin", destination: "/admin" },
+      { source: "/smartadmin/:path*", destination: "/admin/:path*" },
+    ];
+  },
   async headers() {
     return [
       {
