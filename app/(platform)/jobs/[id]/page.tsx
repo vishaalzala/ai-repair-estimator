@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Boxes, CalendarDays, Camera, CarFront, ClipboardList, FileText, FolderOpen, History, Pencil, Shield, Sparkles, UserRound } from "lucide-react";
 import { requireOrganizationContext } from "@/lib/auth/context";
 import { updateJobOverview } from "./actions";
-import { quoteStates, repairStates, updateJobStages } from "./stage-actions";
+import { updateJobStages } from "./stage-actions";
+import { quoteStates, repairStates } from "@/lib/workflow/quote-repair-status";
 
 function text(value: string | null | undefined) {
   return value?.trim() || "—";
